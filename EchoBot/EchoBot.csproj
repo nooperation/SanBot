@@ -8,13 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Google.Cloud.Translate.V3" Version="3.0.0" />
-    <PackageReference Include="LanguageDetection" Version="1.2.0" />
-  </ItemGroup>
-
-  <ItemGroup>
     <ProjectReference Include="..\SanBot.Core\SanBot.Core\SanBot.Core.csproj" />
-    <ProjectReference Include="..\Sanbot.Database\SanBot.Database.csproj" />
     <ProjectReference Include="..\SanProtocol\SanProtocol\SanProtocol.csproj" />
     <ProjectReference Include="..\SanWebApi\SanWebApi\SanWebApi.csproj" />
   </ItemGroup>

@@ -11,7 +11,11 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SanProtocol", "SanProtocol\
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SanBot.Core", "SanBot.Core\SanBot.Core\SanBot.Core.csproj", "{9A5FE4E3-8C37-4354-8BA5-FF683BC4B588}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SanBot.Database", "Sanbot.Database\SanBot.Database.csproj", "{6E038C23-3842-4E0C-A3F3-1D898FD5F847}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SanBot.Database", "Sanbot.Database\SanBot.Database.csproj", "{6E038C23-3842-4E0C-A3F3-1D898FD5F847}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SanServerTester", "SanServerTester\SanServerTester\SanServerTester.csproj", "{627690B1-26DC-4E0B-8A01-FD55BDD673F4}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EchoBot", "EchoBot\EchoBot.csproj", "{AC0BA14E-D087-4406-B6B1-608602D9C5A6}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -39,6 +43,14 @@ Global
 		{6E038C23-3842-4E0C-A3F3-1D898FD5F847}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6E038C23-3842-4E0C-A3F3-1D898FD5F847}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{6E038C23-3842-4E0C-A3F3-1D898FD5F847}.Release|Any CPU.Build.0 = Release|Any CPU
+		{627690B1-26DC-4E0B-8A01-FD55BDD673F4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{627690B1-26DC-4E0B-8A01-FD55BDD673F4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{627690B1-26DC-4E0B-8A01-FD55BDD673F4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{627690B1-26DC-4E0B-8A01-FD55BDD673F4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AC0BA14E-D087-4406-B6B1-608602D9C5A6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AC0BA14E-D087-4406-B6B1-608602D9C5A6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AC0BA14E-D087-4406-B6B1-608602D9C5A6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AC0BA14E-D087-4406-B6B1-608602D9C5A6}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
