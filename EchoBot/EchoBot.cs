@@ -70,19 +70,7 @@ namespace EchoBot
             Driver.RegionClient.SimulationMessages.OnInitialTimestamp += SimulationMessages_OnInitialTimestamp;
 
             Driver.VoiceClient.ClientVoiceMessages.OnLoginReply += ClientVoiceMessages_OnLoginReply;
-            Driver.VoiceClient.ClientVoiceMessages.OnAudioData += ClientVoiceMessages_OnAudioData;
             Driver.VoiceClient.ClientVoiceMessages.OnLocalAudioData += ClientVoiceMessages_OnLocalAudioData;
-            Driver.VoiceClient.ClientVoiceMessages.OnLocalAudioStreamState += ClientVoiceMessages_OnLocalAudioStreamState;
-            Driver.VoiceClient.ClientVoiceMessages.OnLocalAudioPosition += ClientVoiceMessages_OnLocalAudioPosition;
-            Driver.VoiceClient.ClientVoiceMessages.OnLocalAudioMute += ClientVoiceMessages_OnLocalAudioMute;
-            Driver.VoiceClient.ClientVoiceMessages.OnLocalSetRegionBroadcasted += ClientVoiceMessages_OnLocalSetRegionBroadcasted;
-            Driver.VoiceClient.ClientVoiceMessages.OnLocalSetMuteAll += ClientVoiceMessages_OnLocalSetMuteAll;
-            Driver.VoiceClient.ClientVoiceMessages.OnGroupAudioData += ClientVoiceMessages_OnGroupAudioData;
-            Driver.VoiceClient.ClientVoiceMessages.OnLocalTextData += ClientVoiceMessages_OnLocalTextData;
-            Driver.VoiceClient.ClientVoiceMessages.OnMasterInstance += ClientVoiceMessages_OnMasterInstance;
-            Driver.VoiceClient.ClientVoiceMessages.OnVoiceModerationCommand += ClientVoiceMessages_OnVoiceModerationCommand;
-            Driver.VoiceClient.ClientVoiceMessages.OnVoiceModerationCommandResponse += ClientVoiceMessages_OnVoiceModerationCommandResponse;
-            Driver.VoiceClient.ClientVoiceMessages.OnVoiceNotification += ClientVoiceMessages_OnVoiceNotification;
 
             Driver.StartAsync(config).Wait();
 
@@ -93,46 +81,7 @@ namespace EchoBot
         }
 
 
-        private void ClientVoiceMessages_OnVoiceModerationCommandResponse(object? sender, SanProtocol.ClientVoice.VoiceModerationCommandResponse e)
-        {
-            Output($"VoiceModerationCommandResponse: [{e.MessageId}] Success={e.Success} Message ={e.Message}");
-        }
-        private void ClientVoiceMessages_OnVoiceModerationCommand(object? sender, SanProtocol.ClientVoice.VoiceModerationCommand e)
-        {
-            Output($"VoiceModerationCommand: [{e.MessageId}] Command={e.CommandLine}");
-        }
-        private void ClientVoiceMessages_OnMasterInstance(object? sender, SanProtocol.ClientVoice.MasterInstance e)
-        {
-            Output($"MasterInstance: [{e.MessageId}] {e.Instance}");
-        }
-        private void ClientVoiceMessages_OnLocalTextData(object? sender, SanProtocol.ClientVoice.LocalTextData e)
-        {
-            Output($"LocalTextData: [{e.MessageId}] Instance={e.Instance} Agent={e.AgentControllerId}: {e.Data}");
-        }
-        private void ClientVoiceMessages_OnGroupAudioData(object? sender, SanProtocol.ClientVoice.GroupAudioData e)
-        {
-            Output($"GroupAudioData: [{e.MessageId}] User={e.User} Group={e.Group}");
-        }
-        private void ClientVoiceMessages_OnLocalSetMuteAll(object? sender, SanProtocol.ClientVoice.LocalSetMuteAll e)
-        {
-            Output($"LocalSetMuteAll: [{e.MessageId}] MuteAll={e.MuteAll}");
-        }
-        private void ClientVoiceMessages_OnLocalSetRegionBroadcasted(object? sender, SanProtocol.ClientVoice.LocalSetRegionBroadcasted e)
-        {
-            Output($"LocalSetRegionBroadcasted: [{e.MessageId}] Broadcasted={e.Broadcasted}");
-        }
-        private void ClientVoiceMessages_OnLocalAudioMute(object? sender, SanProtocol.ClientVoice.LocalAudioMute e)
-        {
-            Output($"LocalAudioMute: [{e.MessageId}] ShouldMute={e.ShouldMute} Agent={e.AgentControllerId}");
-        }
-        private void ClientVoiceMessages_OnLocalAudioPosition(object? sender, SanProtocol.ClientVoice.LocalAudioPosition e)
-        {
-            Output($"LocalAudioPosition: [{e.MessageId}] Sequence={e.Sequence} Agent={e.AgentControllerId} Position=<{string.Join(',', e.Position)}>");
-        }
-        private void ClientVoiceMessages_OnLocalAudioStreamState(object? sender, SanProtocol.ClientVoice.LocalAudioStreamState e)
-        {
-            Output($"LocalAudioStreamState: [{e.MessageId}] Instance={e.Instance} Mute={e.Mute} Broadcast={e.Broadcast}");
-        }
+
         private void ClientVoiceMessages_OnLocalAudioData(object? sender, SanProtocol.ClientVoice.LocalAudioData e)
         {
             //Output($"OnLocalAudioData: [{e.MessageId}] AgentControllerId={e.AgentControllerId} Broadcast={e.Broadcast} Data=[{e.Data.Data.Length}]");
@@ -151,15 +100,7 @@ namespace EchoBot
             ));
             VoiceSequence++;
         }
-        private void ClientVoiceMessages_OnAudioData(object? sender, SanProtocol.ClientVoice.AudioData e)
-        {
-            //Output($"OnAudioData: [{e.MessageId}] Sequence={e.Sequence} Volume={e.Volume} Data=[{e.Data.Length}]");
-        }
-        private void ClientVoiceMessages_OnVoiceNotification(object? sender, SanProtocol.ClientVoice.VoiceNotification e)
-        {
-            Output($"Voice notification: [{e.MessageId}] {e.Notification}");
-        }
-
+    
         private void ClientVoiceMessages_OnLoginReply(object? sender, SanProtocol.ClientVoice.LoginReply e)
         {
             Output("Logged into voice server: " + e.ToString());
@@ -189,8 +130,6 @@ namespace EchoBot
 
         private void ClientRegionMessages_OnClientSetRegionBroadcasted(object? sender, SanProtocol.ClientRegion.ClientSetRegionBroadcasted e)
         {
-            Output($"ClientSetRegionBroadcasted: [{e.MessageId}] Success={e.Broadcasted}");
-
             Output($"Sending to voice server: LocalSetRegionBroadcasted({e.Broadcasted})...");
             Driver.VoiceClient.SendPacket(new LocalSetRegionBroadcasted(e.Broadcasted));
         }
