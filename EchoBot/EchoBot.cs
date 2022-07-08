@@ -30,6 +30,9 @@ namespace EchoBot
         //public SanUUID ItemClousterResourceId { get; set; } = new SanUUID("b8534d067b0613a509b0155e0dacb0b2"); // fox doll
         public ulong CurrentFrame { get; set; } = 0;
 
+        public DateTime? LastTimeWeListenedToOurTarget { get; set; } = null;
+        public uint? CurrentlyListeningTo { get; set; } = null;
+
         public EchoBot()
         {
             ConfigFile config;
@@ -84,12 +87,32 @@ namespace EchoBot
 
         private void ClientVoiceMessages_OnLocalAudioData(object? sender, SanProtocol.ClientVoice.LocalAudioData e)
         {
-            //Output($"OnLocalAudioData: [{e.MessageId}] AgentControllerId={e.AgentControllerId} Broadcast={e.Broadcast} Data=[{e.Data.Data.Length}]");
-
             if(e.AgentControllerId == MyAgentControllerId)
             {
                 return;
             }
+
+            if(e.Data.Volume < 100)
+            {
+                return;
+            }
+
+            if (LastTimeWeListenedToOurTarget != null)
+            {
+                if ((DateTime.Now - LastTimeWeListenedToOurTarget.Value).TotalMilliseconds > 1000)
+                {
+                    LastTimeWeListenedToOurTarget = null;
+                    CurrentlyListeningTo = null;
+                }
+            }
+
+            if (CurrentlyListeningTo != null && e.AgentControllerId != CurrentlyListeningTo.Value)
+            {
+                return;
+            }
+
+            CurrentlyListeningTo = e.AgentControllerId;
+            LastTimeWeListenedToOurTarget = DateTime.Now;
 
             Driver.VoiceClient.SendPacket(new LocalAudioData(
                 e.Instance,
