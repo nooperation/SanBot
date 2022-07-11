@@ -28,7 +28,7 @@ namespace EchoBot
         public HashSet<ulong> TargetSessionIds { get; set; } = new HashSet<ulong>();
         public HashSet<ulong> TargetAgentControllerIds { get; set; } = new HashSet<ulong>();
         public HashSet<ulong> TargetAgentComponentIds { get; set; } = new HashSet<ulong>();
-        public Dictionary<ulong, List<float>> TargetPositions { get; set; } = new Dictionary<ulong, List<float>>();
+        public Dictionary<ulong, SanProtocol.AnimationComponent.CharacterTransform> ComponentPositions { get; set; } = new Dictionary<ulong, SanProtocol.AnimationComponent.CharacterTransform>();
         public List<float>? OurLastVoicePosition { get; set; } = null;
 
 
@@ -132,10 +132,6 @@ namespace EchoBot
                     e.RightHandIsHolding
                 ));
             }
-            else
-            {
-                Output("Skipped AgentControllerMessages_OnCharacterControlPointInputReliable");
-            }
         }
 
         private void AgentControllerMessages_OnCharacterControlPointInput(object? sender, SanProtocol.AgentController.CharacterControlPointInput e)
@@ -158,15 +154,11 @@ namespace EchoBot
                     e.RightHandIsHolding
                 ));
             }
-            else
-            {
-                Output("Skipped AgentControllerMessages_OnCharacterControlPointInput");
-            }
         }
 
         private void AgentControllerMessages_OnCharacterIKPoseDelta(object? sender, SanProtocol.AgentController.CharacterIKPoseDelta e)
         {
-            if (e.AgentControllerId != MyAgentControllerId)
+            if (false && e.AgentControllerId != MyAgentControllerId)
             {
                 CurrentFrame = Math.Max(CurrentFrame, e.Frame);
                 Driver.RegionClient.SendPacket(new SanProtocol.AgentController.CharacterIKPoseDelta(
@@ -176,15 +168,11 @@ namespace EchoBot
                     e.RootBoneTranslationDelta
                 ));
             }
-            else
-            {
-                Output("Skipped AgentControllerMessages_OnCharacterIKPoseDelta");
-            }
         }
 
         private void AgentControllerMessages_OnCharacterIKPose(object? sender, SanProtocol.AgentController.CharacterIKPose e)
         {
-            if (e.AgentControllerId != MyAgentControllerId)
+            if (false && e.AgentControllerId != MyAgentControllerId)
             {
                 CurrentFrame = Math.Max(CurrentFrame, e.Frame);
                 Driver.RegionClient.SendPacket(new SanProtocol.AgentController.CharacterIKPose(
@@ -193,10 +181,6 @@ namespace EchoBot
                     e.BoneRotations,
                     e.RootBoneTranslation
                 ));
-            }
-            else
-            {
-                Output("Skipped AgentControllerMessages_OnCharacterIKPoseDelta");
             }
         }
 
@@ -429,33 +413,29 @@ namespace EchoBot
 
         private void AnimationComponentMessages_OnCharacterTransformPersistent(object? sender, SanProtocol.AnimationComponent.CharacterTransformPersistent e)
         {
-            if (!TargetAgentComponentIds.Contains(e.ComponentId))
-            {
-                return;
-            }
+            ComponentPositions[e.ComponentId] = e;
 
-            TargetPositions[e.ComponentId] = e.Position;
-
-            if (FollowTargetMode)
+            if (TargetAgentComponentIds.Contains(e.ComponentId))
             {
-                CurrentFrame = Math.Max(CurrentFrame, e.ServerFrame);
-                SetPosition(e.Position, e.OrientationQuat, e.GroundComponentId, true, true, e.ServerFrame);
+                if (FollowTargetMode)
+                {
+                    CurrentFrame = Math.Max(CurrentFrame, e.ServerFrame);
+                    SetPosition(e.Position, e.OrientationQuat, e.GroundComponentId, true, true, e.ServerFrame);
+                }
             }
         }
 
         private void AnimationComponentMessages_OnCharacterTransform(object? sender, SanProtocol.AnimationComponent.CharacterTransform e)
         {
-            if (!TargetAgentComponentIds.Contains(e.ComponentId))
-            {
-                return;
-            }
+            ComponentPositions[e.ComponentId] = e;
 
-            TargetPositions[e.ComponentId] = e.Position;
-
-            if (FollowTargetMode)
+            if (TargetAgentComponentIds.Contains(e.ComponentId))
             {
-                CurrentFrame = Math.Max(CurrentFrame, e.ServerFrame);
-                SetPosition(e.Position, e.OrientationQuat, e.GroundComponentId, false, false, e.ServerFrame);
+                if (FollowTargetMode)
+                {
+                    CurrentFrame = Math.Max(CurrentFrame, e.ServerFrame);
+                    SetPosition(e.Position, e.OrientationQuat, e.GroundComponentId, false, false, e.ServerFrame);
+                }
             }
         }
 
@@ -509,7 +489,7 @@ namespace EchoBot
         {
             if (e.PersonaId == Driver.MyPersonaDetails!.Id)
             {
-                Output($"[{e.IsRemoteAgent} {e.PersonaId}] Component: {e.CharacterObjectId * 0x100000000ul}");
+                Output($"My AgentComponentId is {e.CharacterObjectId * 0x100000000ul}");
                 this.MyAgentComponentId = e.CharacterObjectId * 0x100000000ul;
             }
 
@@ -520,6 +500,17 @@ namespace EchoBot
                 TargetAgentComponentIds.Add(componentId);
                 TargetAgentControllerIds.Add(e.AgentControllerId);
                 Output($"Found target agent controller ID: {e.AgentControllerId}");
+
+                if(ComponentPositions.ContainsKey(componentId) && MyAgentComponentId != 0)
+                {
+                    if (FollowTargetMode)
+                    {
+                        Output("Teleporting to our target...");
+                        var lastCharacterTransform = ComponentPositions[componentId];
+                        CurrentFrame = e.Frame+10;
+                        SetPosition(lastCharacterTransform.Position, lastCharacterTransform.OrientationQuat, lastCharacterTransform.GroundComponentId, true, true, e.Frame);
+                    }
+                }
             }
         }
 
@@ -538,6 +529,22 @@ namespace EchoBot
 
             Output("Sending to voice server: LocalAudioPosition(0,0,0)...");
             Driver.VoiceClient.SendPacket(new LocalAudioPosition((uint)VoiceSequence++, Driver.VoiceClient.InstanceId, new List<float>() { 0, 0, 0 }, MyAgentControllerId));
+
+            foreach (var targetAgentComponentId in TargetAgentComponentIds)
+            {
+                if (ComponentPositions.ContainsKey(targetAgentComponentId))
+                {
+                    if (FollowTargetMode)
+                    {
+                        Output("Teleporting to our target...");
+                        var lastCharacterTransform = ComponentPositions[targetAgentComponentId];
+                        CurrentFrame = e.Frame;
+                        SetPosition(lastCharacterTransform.Position, lastCharacterTransform.OrientationQuat, lastCharacterTransform.GroundComponentId, true, true, e.Frame);
+                    }
+
+                    break;
+                }
+            }
         }
 
         private void SimulationMessages_OnInitialTimestamp(object? sender, SanProtocol.Simulation.InitialTimestamp e)
@@ -583,16 +590,6 @@ namespace EchoBot
             }
 
             Console.Write(finalOutput);
-        }
-
-        public void OutputSuccess(string message)
-        {
-            Console.WriteLine($"[SUCCESS] {message}");
-        }
-
-        public void OutputFailure(string message)
-        {
-            Console.WriteLine($"[FAIL] {message}");
         }
 
         private void ClientRegionMessages_OnRemoveUser(object? sender, SanProtocol.ClientRegion.RemoveUser e)
@@ -676,7 +673,8 @@ namespace EchoBot
             }
 
             Output("Kafka client logged in successfully");
-            Driver.JoinRegion("sansar-studios", "nexus").Wait();
+            //Driver.JoinRegion("sansar-studios", "nexus").Wait();
+            Driver.JoinRegion("nopnop", "unit").Wait();
         }
     }
 }
