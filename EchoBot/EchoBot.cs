@@ -87,6 +87,11 @@ namespace EchoBot
             Driver.RegionClient.AgentControllerMessages.OnCharacterControllerInput += AgentControllerMessages_OnCharacterControllerInput;
             Driver.RegionClient.AgentControllerMessages.OnCharacterControllerInputReliable += AgentControllerMessages_OnCharacterControllerInputReliable;
 
+            Driver.RegionClient.AgentControllerMessages.OnCharacterIKPose += AgentControllerMessages_OnCharacterIKPose;
+            Driver.RegionClient.AgentControllerMessages.OnCharacterIKPoseDelta += AgentControllerMessages_OnCharacterIKPoseDelta;
+            Driver.RegionClient.AgentControllerMessages.OnCharacterControlPointInput += AgentControllerMessages_OnCharacterControlPointInput;
+            Driver.RegionClient.AgentControllerMessages.OnCharacterControlPointInputReliable += AgentControllerMessages_OnCharacterControlPointInputReliable;
+
             Driver.RegionClient.WorldStateMessages.OnCreateClusterViaDefinition += WorldStateMessages_OnCreateClusterViaDefinition;
             Driver.RegionClient.WorldStateMessages.OnCreateAgentController += WorldStateMessages_OnCreateAgentController;
             Driver.RegionClient.WorldStateMessages.OnDestroyAgentController += WorldStateMessages_OnDestroyAgentController;
@@ -103,6 +108,95 @@ namespace EchoBot
             while (true)
             {
                 Driver.Poll();
+            }
+        }
+
+        private void AgentControllerMessages_OnCharacterControlPointInputReliable(object? sender, SanProtocol.AgentController.CharacterControlPointInputReliable e)
+        {
+
+            if (e.AgentControllerId != MyAgentControllerId)
+            {
+                CurrentFrame = Math.Max(CurrentFrame, e.Frame);
+                Driver.RegionClient.SendPacket(new SanProtocol.AgentController.CharacterControlPointInputReliable(
+                    e.Frame,
+                    MyAgentControllerId,
+                    e.ControlPoints,
+                    e.LeftIndexTrigger,
+                    e.RightIndexTrigger,
+                    e.LeftGripTrigger,
+                    e.RightGripTrigger,
+                    e.LeftTouches,
+                    e.RightTouches,
+                    e.IndexTriggerControlsHand,
+                    e.LeftHandIsHolding,
+                    e.RightHandIsHolding
+                ));
+            }
+            else
+            {
+                Output("Skipped AgentControllerMessages_OnCharacterControlPointInputReliable");
+            }
+        }
+
+        private void AgentControllerMessages_OnCharacterControlPointInput(object? sender, SanProtocol.AgentController.CharacterControlPointInput e)
+        {
+            if (e.AgentControllerId != MyAgentControllerId)
+            {
+                CurrentFrame = Math.Max(CurrentFrame, e.Frame);
+                Driver.RegionClient.SendPacket(new SanProtocol.AgentController.CharacterControlPointInput(
+                    e.Frame,
+                    MyAgentControllerId,
+                    e.ControlPoints,
+                    e.LeftIndexTrigger,
+                    e.RightIndexTrigger,
+                    e.LeftGripTrigger,
+                    e.RightGripTrigger,
+                    e.LeftTouches,
+                    e.RightTouches,
+                    e.IndexTriggerControlsHand,
+                    e.LeftHandIsHolding,
+                    e.RightHandIsHolding
+                ));
+            }
+            else
+            {
+                Output("Skipped AgentControllerMessages_OnCharacterControlPointInput");
+            }
+        }
+
+        private void AgentControllerMessages_OnCharacterIKPoseDelta(object? sender, SanProtocol.AgentController.CharacterIKPoseDelta e)
+        {
+            if (e.AgentControllerId != MyAgentControllerId)
+            {
+                CurrentFrame = Math.Max(CurrentFrame, e.Frame);
+                Driver.RegionClient.SendPacket(new SanProtocol.AgentController.CharacterIKPoseDelta(
+                    MyAgentControllerId,
+                    e.Frame,
+                    e.BoneRotations,
+                    e.RootBoneTranslationDelta
+                ));
+            }
+            else
+            {
+                Output("Skipped AgentControllerMessages_OnCharacterIKPoseDelta");
+            }
+        }
+
+        private void AgentControllerMessages_OnCharacterIKPose(object? sender, SanProtocol.AgentController.CharacterIKPose e)
+        {
+            if (e.AgentControllerId != MyAgentControllerId)
+            {
+                CurrentFrame = Math.Max(CurrentFrame, e.Frame);
+                Driver.RegionClient.SendPacket(new SanProtocol.AgentController.CharacterIKPose(
+                    MyAgentControllerId,
+                    e.Frame,
+                    e.BoneRotations,
+                    e.RootBoneTranslation
+                ));
+            }
+            else
+            {
+                Output("Skipped AgentControllerMessages_OnCharacterIKPoseDelta");
             }
         }
 
