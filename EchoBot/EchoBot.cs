@@ -20,7 +20,18 @@ namespace EchoBot
         public Driver Driver { get; set; }
         public Dictionary<uint, SanProtocol.ClientRegion.AddUser> PersonaSessionMap { get; }
         public uint MyAgentControllerId { get; private set; }
+        public ulong MyAgentComponentId { get; private set; }
         public ulong VoiceSequence { get; set; }
+        public ulong CurrentFrame { get; set; } = 0;
+        public DateTime? LastTimeWeListenedToOurTarget { get; set; } = null;
+        public uint? CurrentlyListeningTo { get; set; } = null;
+        public HashSet<ulong> TargetSessionIds { get; set; } = new HashSet<ulong>();
+        public HashSet<ulong> TargetAgentControllerIds { get; set; } = new HashSet<ulong>();
+        public HashSet<ulong> TargetAgentComponentIds { get; set; } = new HashSet<ulong>();
+        public Dictionary<ulong, List<float>> TargetPositions { get; set; } = new Dictionary<ulong, List<float>>();
+        public List<float>? OurLastVoicePosition { get; set; } = null;
+
+
         //public SanUUID ItemClousterResourceId { get; set; } = new SanUUID("62f7bca2e04c60bc77ef3bbccbcfb61e"); // panda reaction thing
         //public SanUUID ItemClousterResourceId { get; set; } = new SanUUID("a08aa34cad4dbaea7c1e18a44e4f973c"); // toast reaction thing
         //public SanUUID ItemClousterResourceId { get; set; } = new SanUUID("df2cdee01bb4024640fb93d1c6c1bf29"); // wtf reaction thing
@@ -28,10 +39,11 @@ namespace EchoBot
         //public SanUUID ItemClousterResourceId { get; set; } = new SanUUID("97477c6e978aa38d20e0bb8a60e85830"); // lightning reaction thing
         public SanUUID ItemClousterResourceId { get; set; } = new SanUUID("04c2d5a7ea3d6fb47af66669cfdc9f9a"); // heart reaction thing
         //public SanUUID ItemClousterResourceId { get; set; } = new SanUUID("b8534d067b0613a509b0155e0dacb0b2"); // fox doll
-        public ulong CurrentFrame { get; set; } = 0;
-
-        public DateTime? LastTimeWeListenedToOurTarget { get; set; } = null;
-        public uint? CurrentlyListeningTo { get; set; } = null;
+        public bool RandomCircleOffsetMode { get; set; } = false;
+        public bool FollowTargetMode { get; set; } = true;
+        public HashSet<string> TargetHandles { get; set; } = new HashSet<string>() {
+            "nopnop",
+        };
 
         public EchoBot()
         {
@@ -67,7 +79,18 @@ namespace EchoBot
 
             Driver.RegionClient.ClientRegionMessages.OnClientSetRegionBroadcasted += ClientRegionMessages_OnClientSetRegionBroadcasted;
 
+            Driver.RegionClient.AnimationComponentMessages.OnCharacterTransform += AnimationComponentMessages_OnCharacterTransform;
+            Driver.RegionClient.AnimationComponentMessages.OnCharacterTransformPersistent += AnimationComponentMessages_OnCharacterTransformPersistent;
+            Driver.RegionClient.AnimationComponentMessages.OnBehaviorStateUpdate += AnimationComponentMessages_OnBehaviorStateUpdate;
+            Driver.RegionClient.AnimationComponentMessages.OnPlayAnimation += AnimationComponentMessages_OnPlayAnimation; ;
+
+            Driver.RegionClient.AgentControllerMessages.OnCharacterControllerInput += AgentControllerMessages_OnCharacterControllerInput;
+            Driver.RegionClient.AgentControllerMessages.OnCharacterControllerInputReliable += AgentControllerMessages_OnCharacterControllerInputReliable;
+
             Driver.RegionClient.WorldStateMessages.OnCreateClusterViaDefinition += WorldStateMessages_OnCreateClusterViaDefinition;
+            Driver.RegionClient.WorldStateMessages.OnCreateAgentController += WorldStateMessages_OnCreateAgentController;
+            Driver.RegionClient.WorldStateMessages.OnDestroyAgentController += WorldStateMessages_OnDestroyAgentController;
+            Driver.RegionClient.WorldStateMessages.OnDestroyCluster += WorldStateMessages_OnDestroyCluster;
 
             Driver.RegionClient.SimulationMessages.OnTimestamp += SimulationMessages_OnTimestamp;
             Driver.RegionClient.SimulationMessages.OnInitialTimestamp += SimulationMessages_OnInitialTimestamp;
@@ -83,36 +106,295 @@ namespace EchoBot
             }
         }
 
-
-
-        private void ClientVoiceMessages_OnLocalAudioData(object? sender, SanProtocol.ClientVoice.LocalAudioData e)
+        private void AnimationComponentMessages_OnPlayAnimation(object? sender, SanProtocol.AnimationComponent.PlayAnimation e)
         {
-            if(e.AgentControllerId == MyAgentControllerId)
+            if (TargetAgentComponentIds.Contains(e.ComponentId))
             {
-                return;
+                CurrentFrame = Math.Max(CurrentFrame, e.Frame);
+                Driver.RegionClient.SendPacket(new SanProtocol.AgentController.AgentPlayAnimation(
+                    MyAgentControllerId,
+                    e.Frame,
+                    MyAgentComponentId,
+                    e.ResourceId,
+                    e.PlaybackSpeed,
+                    e.SkeletonType,
+                    e.AnimationType,
+                    e.PlaybackMode
+                ));
+            }
+        }
+
+        private void AnimationComponentMessages_OnBehaviorStateUpdate(object? sender, SanProtocol.AnimationComponent.BehaviorStateUpdate e)
+        {
+            if (TargetAgentComponentIds.Contains(e.ComponentId))
+            {
+                CurrentFrame = Math.Max(CurrentFrame, e.Frame);
+                Driver.RegionClient.SendPacket(new SanProtocol.AgentController.RequestBehaviorStateUpdate(
+                    e.Frame,
+                    MyAgentComponentId,
+                    MyAgentControllerId,
+                    e.Floats,
+                    e.Vectors,
+                    e.Quaternions,
+                    e.Int8s,
+                    e.Bools,
+                    e.InternalEventIds,
+                    e.AnimationAction,
+                    e.NodeLocalTimes,
+                    e.NodeCropValues
+                ));
+            }
+        }
+
+        private void AgentControllerMessages_OnCharacterControllerInputReliable(object? sender, SanProtocol.AgentController.CharacterControllerInputReliable e)
+        {
+            if (TargetAgentControllerIds.Contains(e.AgentControllerId))
+            {
+                CurrentFrame = Math.Max(CurrentFrame, e.Frame);
+                Driver.RegionClient.SendPacket(new SanProtocol.AgentController.CharacterControllerInputReliable(
+                    e.Frame,
+                    MyAgentControllerId,
+                    e.JumpState,
+                    e.JumpBtnPressed,
+                    e.MoveRight,
+                    e.MoveForward,
+                    e.CameraYaw,
+                    e.CameraPitch,
+                    e.BehaviorYawDelta,
+                    e.BehaviorPitchDelta,
+                    e.CharacterForward,
+                    e.CameraForward
+                ));
+            }
+        }
+
+        private void AgentControllerMessages_OnCharacterControllerInput(object? sender, SanProtocol.AgentController.CharacterControllerInput e)
+        {
+            if (TargetAgentControllerIds.Contains(e.AgentControllerId))
+            {
+                CurrentFrame = Math.Max(CurrentFrame, e.Frame);
+                Driver.RegionClient.SendPacket(new SanProtocol.AgentController.CharacterControllerInput(
+                    e.Frame,
+                    MyAgentControllerId,
+                    e.JumpState,
+                    e.JumpBtnPressed,
+                    e.MoveRight,
+                    e.MoveForward,
+                    e.CameraYaw,
+                    e.CameraPitch,
+                    e.BehaviorYawDelta,
+                    e.BehaviorPitchDelta,
+                    e.CharacterForward,
+                    e.CameraForward
+                ));
+            }
+        }
+
+        private void WorldStateMessages_OnDestroyCluster(object? sender, SanProtocol.WorldState.DestroyCluster e)
+        {
+            var componentId = e.ClusterId * 0x100000000ul;
+
+            if (TargetAgentComponentIds.Contains(componentId))
+            {
+                TargetAgentComponentIds.Remove(componentId);
+            }
+        }
+
+        void SetPosition(List<float> position, Quaternion quat, ulong groundComponentId, bool ignoreDistanceCheck, bool isPersistent, ulong serverFrame)
+        {
+            if (position.Count != 3)
+            {
+                throw new Exception($"{nameof(SetPosition)} Expected float3 position, got float{position.Count}");
             }
 
-            if(e.Data.Volume < 100)
+            var xOffset = 0.0f;
+            var yOffset = 0.0f;
+            if (RandomCircleOffsetMode)
             {
-                return;
+                Random rand = new Random();
+
+                var angleRads = rand.NextDouble() * (Math.PI * 2);
+                var radius = 1;
+                xOffset = (float)(radius * Math.Sin(angleRads));
+                yOffset = (float)(radius * Math.Cos(angleRads));
             }
 
-            if (LastTimeWeListenedToOurTarget != null)
+            if (isPersistent)
             {
-                if ((DateTime.Now - LastTimeWeListenedToOurTarget.Value).TotalMilliseconds > 1000)
+                Driver.RegionClient.SendPacket(new SanProtocol.AnimationComponent.CharacterTransformPersistent(
+                    MyAgentComponentId,
+                    CurrentFrame,
+                    groundComponentId,
+                    new List<float>()
+                    {
+                      position[0] + xOffset,
+                      position[1] + yOffset,
+                      position[2],
+                    },
+                    quat
+                ));
+            }
+            else
+            {
+                Driver.RegionClient.SendPacket(new SanProtocol.AnimationComponent.CharacterTransform(
+                    MyAgentComponentId,
+                    serverFrame,
+                    groundComponentId,
+                    new List<float>()
+                    {
+                        position[0] + xOffset,
+                        position[1] + yOffset,
+                        position[2],
+                    },
+                    quat
+                ));
+            }
+
+            if (OurLastVoicePosition == null || ignoreDistanceCheck)
+            {
+                OurLastVoicePosition = position;
+            }
+            else
+            {
+                var distanceSinceFromLastVoicePosition =
+                    Math.Sqrt(
+                        Math.Pow(position[0] - OurLastVoicePosition[0], 2) +
+                        Math.Pow(position[1] - OurLastVoicePosition[1], 2) +
+                        Math.Pow(position[2] - OurLastVoicePosition[2], 2)
+                    );
+
+                if (distanceSinceFromLastVoicePosition <= 2)
                 {
-                    LastTimeWeListenedToOurTarget = null;
-                    CurrentlyListeningTo = null;
+                    return;
                 }
             }
 
-            if (CurrentlyListeningTo != null && e.AgentControllerId != CurrentlyListeningTo.Value)
+            OurLastVoicePosition = position;
+            Driver.VoiceClient.SendPacket(new LocalAudioPosition(
+                (uint)VoiceSequence++,
+                Driver.VoiceClient.InstanceId,
+                new List<float>()
+                {
+                    position[0] + xOffset,
+                    position[1] + yOffset,
+                    position[2],
+                },
+                MyAgentControllerId
+            ));
+        }
+
+        void WarpToPosition(List<float> position3, List<float> rotation4)
+        {
+            if (position3.Count != 3)
+            {
+                throw new Exception($"{nameof(SetPosition)} Expected float3 position, got float{position3.Count}");
+            }
+            if (rotation4.Count != 4)
+            {
+                throw new Exception($"{nameof(rotation4)} Expected float4 rotation, got float{position3.Count}");
+            }
+
+            OurLastVoicePosition = position3;
+
+            var xOffset = 0.0f;
+            var yOffset = 0.0f;
+            if (RandomCircleOffsetMode)
+            {
+                Random rand = new Random();
+
+                var angleRads = rand.NextDouble() * (Math.PI * 2);
+                var radius = 1;
+                xOffset = (float)(radius * Math.Sin(angleRads));
+                yOffset = (float)(radius * Math.Cos(angleRads));
+            }
+
+            Driver.RegionClient.SendPacket(new SanProtocol.AgentController.WarpCharacter(
+                CurrentFrame,
+                MyAgentControllerId,
+                position3[0] + xOffset,
+                position3[1] + yOffset,
+                position3[2],
+                rotation4[0],
+                rotation4[1],
+                rotation4[2],
+                rotation4[3]
+            ));
+
+            Driver.VoiceClient.SendPacket(new LocalAudioPosition(
+                (uint)VoiceSequence++,
+                Driver.VoiceClient.InstanceId,
+                new List<float>()
+                {
+                    position3[0] + xOffset,
+                    position3[1] + yOffset,
+                    position3[2],
+                },
+                MyAgentControllerId
+            ));
+        }
+
+        private void AnimationComponentMessages_OnCharacterTransformPersistent(object? sender, SanProtocol.AnimationComponent.CharacterTransformPersistent e)
+        {
+            if (!TargetAgentComponentIds.Contains(e.ComponentId))
             {
                 return;
             }
 
-            CurrentlyListeningTo = e.AgentControllerId;
-            LastTimeWeListenedToOurTarget = DateTime.Now;
+            TargetPositions[e.ComponentId] = e.Position;
+
+            if (FollowTargetMode)
+            {
+                CurrentFrame = Math.Max(CurrentFrame, e.ServerFrame);
+                SetPosition(e.Position, e.OrientationQuat, e.GroundComponentId, true, true, e.ServerFrame);
+            }
+        }
+
+        private void AnimationComponentMessages_OnCharacterTransform(object? sender, SanProtocol.AnimationComponent.CharacterTransform e)
+        {
+            if (!TargetAgentComponentIds.Contains(e.ComponentId))
+            {
+                return;
+            }
+
+            TargetPositions[e.ComponentId] = e.Position;
+
+            if (FollowTargetMode)
+            {
+                CurrentFrame = Math.Max(CurrentFrame, e.ServerFrame);
+                SetPosition(e.Position, e.OrientationQuat, e.GroundComponentId, false, false, e.ServerFrame);
+            }
+        }
+
+        private void ClientVoiceMessages_OnLocalAudioData(object? sender, SanProtocol.ClientVoice.LocalAudioData e)
+        {
+            if (e.AgentControllerId == MyAgentControllerId)
+            {
+                return;
+            }
+
+            if (TargetHandles.Count != 0 && !TargetAgentControllerIds.Contains(e.AgentControllerId))
+            {
+                return;
+            }
+            else
+            {
+                if (LastTimeWeListenedToOurTarget != null)
+                {
+                    if ((DateTime.Now - LastTimeWeListenedToOurTarget.Value).TotalMilliseconds > 1000)
+                    {
+                        LastTimeWeListenedToOurTarget = null;
+                        CurrentlyListeningTo = null;
+                    }
+                }
+
+                if (CurrentlyListeningTo != null && e.AgentControllerId != CurrentlyListeningTo.Value)
+                {
+                    return;
+                }
+
+                CurrentlyListeningTo = e.AgentControllerId;
+                LastTimeWeListenedToOurTarget = DateTime.Now;
+            }
 
             Driver.VoiceClient.SendPacket(new LocalAudioData(
                 e.Instance,
@@ -123,10 +405,33 @@ namespace EchoBot
             ));
             VoiceSequence++;
         }
-    
+
         private void ClientVoiceMessages_OnLoginReply(object? sender, SanProtocol.ClientVoice.LoginReply e)
         {
             Output("Logged into voice server: " + e.ToString());
+        }
+
+        private void WorldStateMessages_OnCreateAgentController(object? sender, SanProtocol.WorldState.CreateAgentController e)
+        {
+            if (e.PersonaId == Driver.MyPersonaDetails!.Id)
+            {
+                Output($"[{e.IsRemoteAgent} {e.PersonaId}] Component: {e.CharacterObjectId * 0x100000000ul}");
+                this.MyAgentComponentId = e.CharacterObjectId * 0x100000000ul;
+            }
+
+            if (TargetSessionIds.Contains(e.SessionId))
+            {
+                var componentId = e.CharacterObjectId * 0x100000000ul;
+
+                TargetAgentComponentIds.Add(componentId);
+                TargetAgentControllerIds.Add(e.AgentControllerId);
+                Output($"Found target agent controller ID: {e.AgentControllerId}");
+            }
+        }
+
+        private void WorldStateMessages_OnDestroyAgentController(object? sender, SanProtocol.WorldState.DestroyAgentController e)
+        {
+            TargetAgentControllerIds.Remove(e.AgentControllerId);
         }
 
         private void ClientRegionMessages_OnSetAgentController(object? sender, SanProtocol.ClientRegion.SetAgentController e)
@@ -135,7 +440,7 @@ namespace EchoBot
             this.MyAgentControllerId = e.AgentControllerId;
 
             Output("Sending to voice server: LocalAudioStreamState(1)...");
-            Driver.VoiceClient.SendPacket(new LocalAudioStreamState(Driver.VoiceClient.InstanceId, 0, 0, 1));
+            Driver.VoiceClient.SendPacket(new LocalAudioStreamState(Driver.VoiceClient.InstanceId, 0, 1, 1));
 
             Output("Sending to voice server: LocalAudioPosition(0,0,0)...");
             Driver.VoiceClient.SendPacket(new LocalAudioPosition((uint)VoiceSequence++, Driver.VoiceClient.InstanceId, new List<float>() { 0, 0, 0 }, MyAgentControllerId));
@@ -161,27 +466,8 @@ namespace EchoBot
         {
             if (e.ResourceId == this.ItemClousterResourceId)
             {
-                Driver.RegionClient.SendPacket(new SanProtocol.AgentController.WarpCharacter(
-                    CurrentFrame,
-                    MyAgentControllerId,
-                    e.SpawnPosition[0],
-                    e.SpawnPosition[1],
-                    e.SpawnPosition[2],
-                    e.SpawnRotation[0],
-                    e.SpawnRotation[1],
-                    e.SpawnRotation[2],
-                    e.SpawnRotation[3]
-                ));
-                Driver.VoiceClient.SendPacket(new LocalAudioPosition(
-                    (uint)VoiceSequence++,
-                    Driver.VoiceClient.InstanceId,
-                    new List<float>() {
-                        e.SpawnPosition[0],
-                        e.SpawnPosition[1],
-                        e.SpawnPosition[2]
-                    },
-                    MyAgentControllerId
-                ));
+                Output($"<{string.Join(',', e.SpawnRotation)}>");
+                WarpToPosition(e.SpawnPosition, e.SpawnRotation);
             }
         }
 
@@ -190,7 +476,7 @@ namespace EchoBot
             Output(message, sender?.GetType().Name ?? "Bot");
         }
 
-        public void Output(string str, string sender=nameof(EchoBot))
+        public void Output(string str, string sender = nameof(EchoBot))
         {
             var date = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
 
@@ -217,7 +503,7 @@ namespace EchoBot
 
         private void ClientRegionMessages_OnRemoveUser(object? sender, SanProtocol.ClientRegion.RemoveUser e)
         {
-            if(!PersonaSessionMap.ContainsKey(e.SessionId))
+            if (!PersonaSessionMap.ContainsKey(e.SessionId))
             {
                 Output($"<session {e.SessionId}> Left the region");
             }
@@ -227,18 +513,26 @@ namespace EchoBot
                 Output($"{source.UserName} ({source.Handle}) Left the region");
                 PersonaSessionMap.Remove(e.SessionId);
             }
+
+            TargetSessionIds.Remove(e.SessionId);
         }
 
         private void ClientRegionMessages_OnAddUser(object? sender, SanProtocol.ClientRegion.AddUser e)
         {
             PersonaSessionMap[e.SessionId] = e;
 
+            if (TargetHandles.Contains(e.Handle.ToLower()))
+            {
+                Output($"Target found. SessionID = {e.SessionId}");
+                TargetSessionIds.Add(e.SessionId);
+            }
+
             Output($"{e.UserName} ({e.Handle}) Entered the region");
         }
 
         private void ClientKafkaMessages_OnRegionChat(object? sender, RegionChat e)
         {
-            if(e.Message == "")
+            if (e.Message == "")
             {
                 return;
             }
@@ -259,17 +553,17 @@ namespace EchoBot
             Driver.KafkaClient.SendPacket(new SanProtocol.ClientKafka.EnterRegion(
                 regionAddress
             ));
-            
+
             Driver.RegionClient.SendPacket(new SanProtocol.ClientRegion.ClientDynamicReady(
                 //new List<float>() { (float)(radius*Math.Sin(angleRads)), (float)(radius * Math.Cos(angleRads)), 5.0f },
-                new List<float>() { 0,0,0 },
+                new List<float>() { 0, 0, 0 },
                 new List<float>() { -1, 0, 0, 0 }, // upside down spin ish
                 new SanUUID(Driver.MyPersonaDetails!.Id),
                 "",
                 1,
                 1
             ));
-            
+
             Driver.RegionClient.SendPacket(new SanProtocol.ClientRegion.ClientStaticReady(
                 1
             ));
@@ -282,7 +576,7 @@ namespace EchoBot
 
         private void ClientKafkaMessages_OnLoginReply(object? sender, SanProtocol.ClientKafka.LoginReply e)
         {
-            if(!e.Success)
+            if (!e.Success)
             {
                 throw new Exception($"KafkaClient failed to login: {e.Message}");
             }
