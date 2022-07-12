@@ -12,6 +12,7 @@ using SanBot.Core;
 using System.Web;
 using SanProtocol.ClientVoice;
 using SanBot.Core.MessageHandlers;
+using System.Diagnostics;
 
 namespace EchoBot
 {
@@ -22,7 +23,7 @@ namespace EchoBot
         public uint MyAgentControllerId { get; private set; }
         public ulong MyAgentComponentId { get; private set; }
         public ulong VoiceSequence { get; set; }
-        public ulong CurrentFrame { get; set; } = 0;
+
         public DateTime? LastTimeWeListenedToOurTarget { get; set; } = null;
         public uint? CurrentlyListeningTo { get; set; } = null;
         public HashSet<ulong> TargetSessionIds { get; set; } = new HashSet<ulong>();
@@ -41,6 +42,8 @@ namespace EchoBot
         //public SanUUID ItemClousterResourceId { get; set; } = new SanUUID("b8534d067b0613a509b0155e0dacb0b2"); // fox doll
         public bool RandomCircleOffsetMode { get; set; } = false;
         public bool FollowTargetMode { get; set; } = true;
+        public bool RepeatVoice { get; set; } = false;
+
         public HashSet<string> TargetHandles { get; set; } = new HashSet<string>() {
             "nopnop",
         };
@@ -105,6 +108,9 @@ namespace EchoBot
 
             Driver.StartAsync(config).Wait();
 
+            Stopwatch watch = new Stopwatch();
+
+
             while (true)
             {
                 Driver.Poll();
@@ -116,9 +122,8 @@ namespace EchoBot
 
             if (e.AgentControllerId != MyAgentControllerId)
             {
-                CurrentFrame = Math.Max(CurrentFrame, e.Frame);
                 Driver.RegionClient.SendPacket(new SanProtocol.AgentController.CharacterControlPointInputReliable(
-                    e.Frame,
+                    GetCurrentFrame(),
                     MyAgentControllerId,
                     e.ControlPoints,
                     e.LeftIndexTrigger,
@@ -138,9 +143,8 @@ namespace EchoBot
         {
             if (e.AgentControllerId != MyAgentControllerId)
             {
-                CurrentFrame = Math.Max(CurrentFrame, e.Frame);
                 Driver.RegionClient.SendPacket(new SanProtocol.AgentController.CharacterControlPointInput(
-                    e.Frame,
+                    GetCurrentFrame(),
                     MyAgentControllerId,
                     e.ControlPoints,
                     e.LeftIndexTrigger,
@@ -160,10 +164,9 @@ namespace EchoBot
         {
             if (false && e.AgentControllerId != MyAgentControllerId)
             {
-                CurrentFrame = Math.Max(CurrentFrame, e.Frame);
                 Driver.RegionClient.SendPacket(new SanProtocol.AgentController.CharacterIKPoseDelta(
                     MyAgentControllerId,
-                    e.Frame,
+                    GetCurrentFrame(),
                     e.BoneRotations,
                     e.RootBoneTranslationDelta
                 ));
@@ -174,10 +177,9 @@ namespace EchoBot
         {
             if (false && e.AgentControllerId != MyAgentControllerId)
             {
-                CurrentFrame = Math.Max(CurrentFrame, e.Frame);
                 Driver.RegionClient.SendPacket(new SanProtocol.AgentController.CharacterIKPose(
                     MyAgentControllerId,
-                    e.Frame,
+                    GetCurrentFrame(),
                     e.BoneRotations,
                     e.RootBoneTranslation
                 ));
@@ -188,10 +190,9 @@ namespace EchoBot
         {
             if (TargetAgentComponentIds.Contains(e.ComponentId))
             {
-                CurrentFrame = Math.Max(CurrentFrame, e.Frame);
                 Driver.RegionClient.SendPacket(new SanProtocol.AgentController.AgentPlayAnimation(
                     MyAgentControllerId,
-                    e.Frame,
+                    GetCurrentFrame(),
                     MyAgentComponentId,
                     e.ResourceId,
                     e.PlaybackSpeed,
@@ -206,9 +207,8 @@ namespace EchoBot
         {
             if (TargetAgentComponentIds.Contains(e.ComponentId))
             {
-                CurrentFrame = Math.Max(CurrentFrame, e.Frame);
                 Driver.RegionClient.SendPacket(new SanProtocol.AgentController.RequestBehaviorStateUpdate(
-                    e.Frame,
+                    GetCurrentFrame(),
                     MyAgentComponentId,
                     MyAgentControllerId,
                     e.Floats,
@@ -228,9 +228,8 @@ namespace EchoBot
         {
             if (TargetAgentControllerIds.Contains(e.AgentControllerId))
             {
-                CurrentFrame = Math.Max(CurrentFrame, e.Frame);
                 Driver.RegionClient.SendPacket(new SanProtocol.AgentController.CharacterControllerInputReliable(
-                    e.Frame,
+                    GetCurrentFrame(),
                     MyAgentControllerId,
                     e.JumpState,
                     e.JumpBtnPressed,
@@ -250,9 +249,8 @@ namespace EchoBot
         {
             if (TargetAgentControllerIds.Contains(e.AgentControllerId))
             {
-                CurrentFrame = Math.Max(CurrentFrame, e.Frame);
                 Driver.RegionClient.SendPacket(new SanProtocol.AgentController.CharacterControllerInput(
-                    e.Frame,
+                    GetCurrentFrame(),
                     MyAgentControllerId,
                     e.JumpState,
                     e.JumpBtnPressed,
@@ -278,7 +276,7 @@ namespace EchoBot
             }
         }
 
-        void SetPosition(List<float> position, Quaternion quat, ulong groundComponentId, bool ignoreDistanceCheck, bool isPersistent, ulong serverFrame)
+        void SetPosition(List<float> position, Quaternion quat, ulong groundComponentId, bool ignoreDistanceCheck, bool isPersistent)
         {
             if (position.Count != 3)
             {
@@ -299,9 +297,10 @@ namespace EchoBot
 
             if (isPersistent)
             {
+                Output("CharacterTransformPersistent");
                 Driver.RegionClient.SendPacket(new SanProtocol.AnimationComponent.CharacterTransformPersistent(
                     MyAgentComponentId,
-                    CurrentFrame,
+                    GetCurrentFrame(),
                     groundComponentId,
                     new List<float>()
                     {
@@ -314,9 +313,10 @@ namespace EchoBot
             }
             else
             {
+                Output("CharacterTransform");
                 Driver.RegionClient.SendPacket(new SanProtocol.AnimationComponent.CharacterTransform(
                     MyAgentComponentId,
-                    serverFrame,
+                    GetCurrentFrame(),
                     groundComponentId,
                     new List<float>()
                     {
@@ -369,7 +369,7 @@ namespace EchoBot
             }
             if (rotation4.Count != 4)
             {
-                throw new Exception($"{nameof(rotation4)} Expected float4 rotation, got float{position3.Count}");
+                throw new Exception($"{nameof(rotation4)} Expected float4 rotation, got float{rotation4.Count}");
             }
 
             OurLastVoicePosition = position3;
@@ -387,7 +387,7 @@ namespace EchoBot
             }
 
             Driver.RegionClient.SendPacket(new SanProtocol.AgentController.WarpCharacter(
-                CurrentFrame,
+                GetCurrentFrame(),
                 MyAgentControllerId,
                 position3[0] + xOffset,
                 position3[1] + yOffset,
@@ -419,8 +419,7 @@ namespace EchoBot
             {
                 if (FollowTargetMode)
                 {
-                    CurrentFrame = Math.Max(CurrentFrame, e.ServerFrame);
-                    SetPosition(e.Position, e.OrientationQuat, e.GroundComponentId, true, true, e.ServerFrame);
+                    SetPosition(e.Position, e.OrientationQuat, e.GroundComponentId, true, true);
                 }
             }
         }
@@ -433,14 +432,18 @@ namespace EchoBot
             {
                 if (FollowTargetMode)
                 {
-                    CurrentFrame = Math.Max(CurrentFrame, e.ServerFrame);
-                    SetPosition(e.Position, e.OrientationQuat, e.GroundComponentId, false, false, e.ServerFrame);
+                    SetPosition(e.Position, e.OrientationQuat, e.GroundComponentId, false, false);
                 }
             }
         }
 
         private void ClientVoiceMessages_OnLocalAudioData(object? sender, SanProtocol.ClientVoice.LocalAudioData e)
         {
+            if (!RepeatVoice)
+            {
+                return;
+            }
+
             if (e.AgentControllerId == MyAgentControllerId)
             {
                 return;
@@ -501,14 +504,14 @@ namespace EchoBot
                 TargetAgentControllerIds.Add(e.AgentControllerId);
                 Output($"Found target agent controller ID: {e.AgentControllerId}");
 
-                if(ComponentPositions.ContainsKey(componentId) && MyAgentComponentId != 0)
+                if (ComponentPositions.ContainsKey(componentId) && MyAgentComponentId != 0)
                 {
                     if (FollowTargetMode)
                     {
                         Output("Teleporting to our target...");
                         var lastCharacterTransform = ComponentPositions[componentId];
-                        CurrentFrame = e.Frame+10;
-                        SetPosition(lastCharacterTransform.Position, lastCharacterTransform.OrientationQuat, lastCharacterTransform.GroundComponentId, true, true, e.Frame);
+
+                        SetPosition(lastCharacterTransform.Position, lastCharacterTransform.OrientationQuat, lastCharacterTransform.GroundComponentId, true, true);
                     }
                 }
             }
@@ -538,8 +541,8 @@ namespace EchoBot
                     {
                         Output("Teleporting to our target...");
                         var lastCharacterTransform = ComponentPositions[targetAgentComponentId];
-                        CurrentFrame = e.Frame;
-                        SetPosition(lastCharacterTransform.Position, lastCharacterTransform.OrientationQuat, lastCharacterTransform.GroundComponentId, true, true, e.Frame);
+
+                        SetPosition(lastCharacterTransform.Position, lastCharacterTransform.OrientationQuat, lastCharacterTransform.GroundComponentId, true, true);
                     }
 
                     break;
@@ -547,14 +550,36 @@ namespace EchoBot
             }
         }
 
+        public long LastTimestampTicks { get; set; } = 0;
+        public ulong LastTimestampFrame { get; set; } = 0;
+        private ulong GetCurrentFrame()
+        {
+            if (LastTimestampTicks == 0)
+            {
+                return LastTimestampFrame;
+            }
+
+            const float kFrameFrequency = 1000.0f / 90.0f;
+
+            var millisecondsSinceLastTimestamp = ((DateTime.Now.Ticks - LastTimestampTicks)) / 10000;
+            var totalFramesSinceLastTimestamp = millisecondsSinceLastTimestamp / kFrameFrequency;
+
+            return LastTimestampFrame + (ulong)totalFramesSinceLastTimestamp;
+        }
+
         private void SimulationMessages_OnInitialTimestamp(object? sender, SanProtocol.Simulation.InitialTimestamp e)
         {
-            CurrentFrame = e.Frame;
+            Output($"InitialTimestamp {e.Frame} | {e.Nanoseconds}");
+
+            LastTimestampFrame = e.Frame;
+            LastTimestampTicks = DateTime.Now.Ticks;
         }
 
         private void SimulationMessages_OnTimestamp(object? sender, SanProtocol.Simulation.Timestamp e)
         {
-            CurrentFrame = e.Frame;
+            //Output($"Server frame: {e.Frame} Client frame: {GetCurrentFrame()} | Diff={(long)e.Frame - (long)GetCurrentFrame()}");
+            LastTimestampFrame = e.Frame;
+            LastTimestampTicks = DateTime.Now.Ticks;
         }
 
         private void ClientRegionMessages_OnClientSetRegionBroadcasted(object? sender, SanProtocol.ClientRegion.ClientSetRegionBroadcasted e)
@@ -673,8 +698,8 @@ namespace EchoBot
             }
 
             Output("Kafka client logged in successfully");
-            //Driver.JoinRegion("sansar-studios", "nexus").Wait();
-            Driver.JoinRegion("nopnop", "unit").Wait();
+            Driver.JoinRegion("sansar-studios", "nexus").Wait();
+            //Driver.JoinRegion("nopnop", "unit").Wait();
         }
     }
 }
