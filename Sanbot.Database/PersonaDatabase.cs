@@ -4,12 +4,12 @@ using SanBot.Database.Services;
 
 namespace SanBot.Database
 {
-    public class Database
+    public class PersonaDatabase
     {
         private ApplicationDbContext _context { get; }
         public PersonaService PersonaService { get; }
 
-        public Database()
+        public PersonaDatabase()
         {
             _context = new ApplicationDbContext();
             _context.Database.EnsureCreated();
