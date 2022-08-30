@@ -27,10 +27,9 @@ namespace VoiceBot
         public Driver Driver { get; set; }
         public Dictionary<uint, SanProtocol.ClientRegion.AddUser> PersonaSessionMap { get; }
         public uint MyAgentControllerId { get; private set; }
-        public ulong MyAgentComponentId { get; private set; }
+        public ulong? MyAgentComponentId { get; private set; } = null;
         public ulong VoiceSequence { get; set; }
 
-        public uint? CurrentlyListeningTo { get; set; } = null;
         public Dictionary<ulong, SanProtocol.AnimationComponent.CharacterTransform> ComponentPositions { get; set; } = new Dictionary<ulong, SanProtocol.AnimationComponent.CharacterTransform>();
 
         public Queue<SanProtocol.AnimationComponent.CharacterTransform> CharacterTransformBuffer { get; set; } = new Queue<SanProtocol.AnimationComponent.CharacterTransform>();
@@ -49,6 +48,7 @@ namespace VoiceBot
 
         private AzureConfigPayload AzureConfig { get; set; }
         private SanBot.Database.PersonaDatabase Database { get; }
+        public DateTime LastTimeSomeoneSpoke { get; set; } = DateTime.Now;
 
 
         public VoiceBot()
@@ -61,7 +61,7 @@ namespace VoiceBot
                 Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                 "SanBot"
             );
-            var configPath = Path.Join(sanbotPath, "EchoBot.config.json");
+            var configPath = Path.Join(sanbotPath, "VoiceBot.config.json");
             var azureConfigPath = Path.Join(sanbotPath, "azure.json");
 
             try
@@ -112,6 +112,7 @@ namespace VoiceBot
             Driver.RegionClient.SimulationMessages.OnTimestamp += SimulationMessages_OnTimestamp;
             Driver.RegionClient.SimulationMessages.OnInitialTimestamp += SimulationMessages_OnInitialTimestamp;
 
+            Driver.VoiceClient.ClientVoiceMessages.OnLocalAudioData += ClientVoiceMessages_OnLocalAudioData;
             Driver.VoiceClient.ClientVoiceMessages.OnLoginReply += ClientVoiceMessages_OnLoginReply;
 
             AudioThread = new VoiceAudioThread(Driver.VoiceClient.SendRaw);
@@ -249,6 +250,7 @@ namespace VoiceBot
             private Thread ConsumerThread { get; set; }
 
             private volatile bool _isRunning = false;
+            public DateTime LastTimeSomeoneSpoke { get; set; }
 
             public VoiceAudioThread(Action<byte[]> callback)
             {
@@ -279,18 +281,42 @@ namespace VoiceBot
 
                 while (_isRunning)
                 {
+                    if ((DateTime.Now - LastTimeSomeoneSpoke).TotalSeconds < 1)
+                    {
+                        Thread.Yield();
+                        continue;
+                    }
+
                     if (AudioDataQueue.TryDequeue(out List<byte[]> rawAudioPackets))
                     {
-                        Console.WriteLine("VoiceAudioThread: Audio payload found. Sending it...");
+                        Console.WriteLine($"VoiceAudioThread: Audio payload found. Sending it... rawAudioPackets={rawAudioPackets.Count}");
 
-                        foreach (var packetBytes in rawAudioPackets)
+                        for (int i = 0; i < rawAudioPackets.Count; i++)
                         {
-                            Callback(packetBytes);
+                            Callback(rawAudioPackets[i]);
+
+                            if ((DateTime.Now - LastTimeSomeoneSpoke).TotalSeconds < 1)
+                            {
+                                // This is not safe in any safe in any sort of manner :D
+                                Console.WriteLine($"We are being interrupted. Pausing speech for now");
+                                var newQueue = new ConcurrentQueue<List<byte[]>>();
+
+                                // NOTE: We cannot skip back to previously played samples because each sample has the
+                                //       sequence id already baked into it. We'd need to construct the packets here
+                                //       instead of elsewhere, which I don't really want to do.
+                                newQueue.Enqueue(rawAudioPackets.Skip(i).ToList());
+                                foreach (var item in AudioDataQueue)
+                                {
+                                    newQueue.Enqueue(item);
+                                }
+                                AudioDataQueue = newQueue;
+                                break;
+                            }
+
                             while ((DateTimeOffset.Now.Ticks - previousTickCount) < 200000)
                             {
                                 // nothing
                             }
-
                             previousTickCount = DateTimeOffset.Now.Ticks;
                         }
                     }
@@ -323,9 +349,9 @@ namespace VoiceBot
                 var packetBytes = new LocalAudioData(
                     Driver.CurrentInstanceId,
                     MyAgentControllerId,
-                    new AudioData(VoiceSequence, 1, compressedBytes.Take(written).ToArray()),
+                    new AudioData(VoiceSequence, 50, compressedBytes.Take(written).ToArray()),
                     new SpeechGraphicsData(VoiceSequence, new byte[] { }),
-                    1
+                    0
                 ).GetBytes();
                 VoiceSequence++;
 
@@ -336,7 +362,7 @@ namespace VoiceBot
         }
 
         public HashSet<string> PreviousMessages { get; set; } = new HashSet<string>();
-        public void Speak(string message)
+        public void Speak(string message, bool allowRepeating=false)
         {
             if (message.Length >= 256)
             {
@@ -350,7 +376,7 @@ namespace VoiceBot
             //    return;
             //}
 
-            if (PreviousMessages.Contains(message))
+            if (!allowRepeating && PreviousMessages.Contains(message))
             {
                 return;
             }
@@ -364,13 +390,14 @@ namespace VoiceBot
             speechConfig.SetSpeechSynthesisOutputFormat(SpeechSynthesisOutputFormat.Raw48Khz16BitMonoPcm);
             speechConfig.SpeechSynthesisVoiceName = "en-US-JennyNeural";
             //speechConfig.SpeechSynthesisVoiceName = "en-US-AnaNeural";
-          
+
             var audioCallbackHandler = new AudioStreamHandler(this);
             using (var audioConfig = AudioConfig.FromStreamOutput(audioCallbackHandler))
             {
                 using (var speechSynthesizer = new SpeechSynthesizer(speechConfig, audioConfig))
                 {
-                    var speechSynthesisResult = speechSynthesizer.SpeakTextAsync(message).Result;
+                    // var speechSynthesisResult = speechSynthesizer.SpeakSsmlAsync(@"" + message).Result;
+                    var speechSynthesisResult = speechSynthesizer.SpeakSsmlAsync($"<speak xmlns='http://www.w3.org/2001/10/synthesis' xmlns:mstts='http://www.w3.org/2001/mstts' xmlns:emo='http://www.w3.org/2009/10/emotionml' version='1.0' xml:lang='en-US'><voice name=\"en-US-JennyNeural\"><prosody volume='40'  rate=\'20%\' pitch=\'0%\'>{message}</prosody></voice></speak>").Result;
                     OutputSpeechSynthesisResult(speechSynthesisResult);
                 }
             }
@@ -408,6 +435,8 @@ namespace VoiceBot
                 //{
                 //    Speak($"{persona.Name}: {e.Message}");
                 //}
+
+
                 Speak($"{e.Message}");
             }
             Output($"{persona.Name} [{persona.Handle}]: {e.Message}");
@@ -496,6 +525,23 @@ namespace VoiceBot
             return LastTimestampFrame + (ulong)totalFramesSinceLastTimestamp;
         }
 
+        private void ClientVoiceMessages_OnLocalAudioData(object? sender, SanProtocol.ClientVoice.LocalAudioData e)
+        {
+            if (e.AgentControllerId == MyAgentControllerId)
+            {
+                return;
+            }
+
+            if(e.Data.Volume >= 400)
+            {
+                Output($"Someone is speaking [{e.Data.Volume}]: " + e.AgentControllerId);
+                if (AudioThread != null)
+                {
+                    AudioThread.LastTimeSomeoneSpoke = DateTime.Now;
+                }
+            }
+        }
+
         private void SimulationMessages_OnInitialTimestamp(object? sender, SanProtocol.Simulation.InitialTimestamp e)
         {
             // Output($"InitialTimestamp {e.Frame} | {e.Nanoseconds}}");
@@ -559,13 +605,23 @@ namespace VoiceBot
                 var source = PersonaSessionMap[e.SessionId];
                 Output($"{source.UserName} ({source.Handle}) Left the region");
                 PersonaSessionMap.Remove(e.SessionId);
+
+                //Speak($"{source.UserName} left", true);
             }
         }
 
         private void ClientRegionMessages_OnAddUser(object? sender, SanProtocol.ClientRegion.AddUser e)
         {
             PersonaSessionMap[e.SessionId] = e;
+
+            if (MyAgentComponentId == null)
+            {
+                Output($"[OLD] {e.UserName} ({e.Handle}) Entered the region");
+                return;
+            }
+
             Output($"{e.UserName} ({e.Handle}) Entered the region");
+           // Speak($"{e.UserName} joined", true);
         }
 
 
@@ -585,10 +641,10 @@ namespace VoiceBot
 
             Driver.RegionClient.SendPacket(new SanProtocol.ClientRegion.ClientDynamicReady(
                 new List<float>() { 0, 0, 0 },
-                new List<float>() { -1, 0, 0, 0 },
+                new List<float>() { 1, 0, 0, 0 },
                 new SanUUID(Driver.MyPersonaDetails!.Id),
                 "",
-                1,
+                0,
                 1
             ));
 
@@ -615,10 +671,10 @@ namespace VoiceBot
            // Driver.WebApi.SetAvatarIdAsync(Driver.MyPersonaDetails.Id, "43668ab727c00fd7d33a5af1085493dd").Wait();
 
             // Driver.JoinRegion("djm3n4c3-9174", "dj-s-outside-fun2").Wait();
-            // Driver.JoinRegion("sansar-studios", "social-hub").Wait();
+             Driver.JoinRegion("sansar-studios", "social-hub").Wait();
             // Driver.JoinRegion("nopnop", "unit").Wait();
             //Driver.JoinRegion("mijekamunro", "gone-grid-city-prime-millenium").Wait();
-            Driver.JoinRegion("nopnopnop", "aaaaaaaaaaaa").Wait();
+         //  Driver.JoinRegion("nopnopnop", "aaaaaaaaaaaa").Wait();
             // Driver.JoinRegion("princesspea-0197", "wanderlust").Wait();
         }
     }
