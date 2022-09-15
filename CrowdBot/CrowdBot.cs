@@ -38,13 +38,8 @@ namespace CrowdBot
         Dictionary<uint, CreateAgentController> AgentControllersBySessionId { get; set; } = new System.Collections.Generic.Dictionary<uint, CreateAgentController>();
         public Dictionary<ulong, SanProtocol.AnimationComponent.CharacterTransform> ComponentPositionsByComponentId { get; set; } = new Dictionary<ulong, SanProtocol.AnimationComponent.CharacterTransform>();
 
-        public Queue<SanProtocol.AnimationComponent.CharacterTransform> CharacterTransformBuffer { get; set; } = new Queue<SanProtocol.AnimationComponent.CharacterTransform>();
-
-
         public bool FollowTargetMode { get; set; } = true;
-        public int BufferMovementAmount { get; set; } = 5;
         public bool IsRunning { get; set; } = false;
-
 
         public HashSet<SanUUID> OwnerPersonaIDs { get; set; } = new HashSet<SanUUID>();
         public HashSet<string> OwnerHandles { get; set; } = new HashSet<string>() {
@@ -54,10 +49,16 @@ namespace CrowdBot
             "vitaminc-0154"
         };
 
-       
-        public CrowdBot(string id)
+        public SanProtocol.AnimationComponent.CharacterTransformPersistent? SavedTransform { get; set; }
+        public SanProtocol.AgentController.AgentPlayAnimation? SavedAnimation { get; set; }
+        public SanProtocol.AgentController.CharacterControllerInputReliable? SavedControllerInput { get; set; }
+
+        public CrowdBot(string id, SanProtocol.AnimationComponent.CharacterTransformPersistent? transformToRestore, SanProtocol.AgentController.CharacterControllerInputReliable? controllerInputToRestore, SanProtocol.AgentController.AgentPlayAnimation? animationToRestore)
         {
             Id = id;
+            SavedTransform = transformToRestore;
+            SavedAnimation = animationToRestore;
+            SavedControllerInput = controllerInputToRestore;
 
             Driver = new Driver();
             Driver.OnOutput += Driver_OnOutput;
@@ -74,7 +75,7 @@ namespace CrowdBot
             Driver.RegionClient.AnimationComponentMessages.OnCharacterTransform += AnimationComponentMessages_OnCharacterTransform;
             Driver.RegionClient.AnimationComponentMessages.OnCharacterTransformPersistent += AnimationComponentMessages_OnCharacterTransformPersistent;
             Driver.RegionClient.AnimationComponentMessages.OnBehaviorStateUpdate += AnimationComponentMessages_OnBehaviorStateUpdate;
-            Driver.RegionClient.AnimationComponentMessages.OnPlayAnimation += AnimationComponentMessages_OnPlayAnimation; ;
+            Driver.RegionClient.AnimationComponentMessages.OnPlayAnimation += AnimationComponentMessages_OnPlayAnimation;
 
             Driver.RegionClient.AgentControllerMessages.OnCharacterControllerInput += AgentControllerMessages_OnCharacterControllerInput;
             Driver.RegionClient.AgentControllerMessages.OnCharacterControllerInputReliable += AgentControllerMessages_OnCharacterControllerInputReliable;
@@ -181,7 +182,7 @@ namespace CrowdBot
         {
             if (TargetAgentComponentIds.Contains(e.ComponentId))
             {
-                Driver.RegionClient.SendPacket(new SanProtocol.AgentController.AgentPlayAnimation(
+                var animationPacket = new SanProtocol.AgentController.AgentPlayAnimation(
                     MyAgentControllerId,
                     GetCurrentFrame(),
                     MyAgentComponentId,
@@ -190,7 +191,10 @@ namespace CrowdBot
                     e.SkeletonType,
                     e.AnimationType,
                     e.PlaybackMode
-                ));
+                );
+
+                Driver.RegionClient.SendPacket(animationPacket);
+                SavedAnimation = animationPacket;
             }
         }
 
@@ -198,20 +202,20 @@ namespace CrowdBot
         {
             if (TargetAgentComponentIds.Contains(e.ComponentId))
             {
-                Driver.RegionClient.SendPacket(new SanProtocol.AgentController.RequestBehaviorStateUpdate(
-                    GetCurrentFrame(),
-                    MyAgentComponentId,
-                    MyAgentControllerId,
-                    e.Floats,
-                    e.Vectors,
-                    e.Quaternions,
-                    e.Int8s,
-                    e.Bools,
-                    e.InternalEventIds,
-                    e.AnimationAction,
-                    e.NodeLocalTimes,
-                    e.NodeCropValues
-                ));
+               Driver.RegionClient.SendPacket(new SanProtocol.AgentController.RequestBehaviorStateUpdate(
+                   GetCurrentFrame(),
+                   MyAgentComponentId,
+                   MyAgentControllerId,
+                   e.Floats,
+                   e.Vectors,
+                   e.Quaternions,
+                   e.Int8s,
+                   e.Bools,
+                   e.InternalEventIds,
+                   e.AnimationAction,
+                   e.NodeLocalTimes,
+                   e.NodeCropValues
+               ));
             }
         }
 
@@ -219,7 +223,12 @@ namespace CrowdBot
         {
             if (TargetAgentControllerIds.Contains(e.AgentControllerId))
             {
-                Driver.RegionClient.SendPacket(new SanProtocol.AgentController.CharacterControllerInputReliable(
+                if (Math.Abs(e.MoveForward) > 0.0001f || Math.Abs(e.MoveRight) > 0.0001f)
+                {
+                    SavedAnimation = null;
+                }
+
+                var controllerInputPacket = new SanProtocol.AgentController.CharacterControllerInputReliable(
                     GetCurrentFrame(),
                     MyAgentControllerId,
                     e.JumpState,
@@ -232,7 +241,10 @@ namespace CrowdBot
                     e.BehaviorPitchDelta,
                     e.CharacterForward,
                     e.CameraForward
-                ));
+                );
+
+                Driver.RegionClient.SendPacket(controllerInputPacket);
+                SavedControllerInput = controllerInputPacket;
             }
         }
 
@@ -240,6 +252,11 @@ namespace CrowdBot
         {
             if (TargetAgentControllerIds.Contains(e.AgentControllerId))
             {
+                if(Math.Abs(e.MoveForward) > 0.0001f || Math.Abs(e.MoveRight) > 0.0001f)
+                {
+                    SavedAnimation = null;
+                }
+                
                 Driver.RegionClient.SendPacket(new SanProtocol.AgentController.CharacterControllerInput(
                     GetCurrentFrame(),
                     MyAgentControllerId,
@@ -335,19 +352,17 @@ namespace CrowdBot
         private void AnimationComponentMessages_OnCharacterTransformPersistent(object? sender, SanProtocol.AnimationComponent.CharacterTransformPersistent e)
         {
             ComponentPositionsByComponentId[e.ComponentId] = e;
-            Output($"OnCharacterTransformPersistent {e.ComponentId} {String.Join(',', e.Position)}");
 
             if (TargetAgentComponentIds.Contains(e.ComponentId))
             {
                 if (FollowTargetMode)
                 {
-                    CharacterTransformBuffer.Enqueue(e);
-
-                    if (CharacterTransformBuffer.Count >= this.BufferMovementAmount)
+                    if(SavedAnimation == null)
                     {
-                        var transform = CharacterTransformBuffer.Dequeue();
-                        SetPosition(transform.Position, transform.OrientationQuat, transform.GroundComponentId, true, true);
+                        SavedTransform = e;
                     }
+
+                    SetPosition(e.Position, e.OrientationQuat, e.GroundComponentId, true, true);
                 }
             }
         }
@@ -360,13 +375,7 @@ namespace CrowdBot
             {
                 if (FollowTargetMode)
                 {
-                    CharacterTransformBuffer.Enqueue(e);
-
-                    if (CharacterTransformBuffer.Count >= this.BufferMovementAmount)
-                    {
-                        var transform = CharacterTransformBuffer.Dequeue();
-                        SetPosition(transform.Position, transform.OrientationQuat, transform.GroundComponentId, false, false);
-                    }
+                    SetPosition(e.Position, e.OrientationQuat, e.GroundComponentId, false, false);
                 }
             }
         }
@@ -393,8 +402,7 @@ namespace CrowdBot
                 .FirstOrDefault();
             if(myController == null)
             {
-                Say("Error");
-                Output("Failed to find my controller..?");
+                Say("Failed to find my controller..?");
                 return;
             }
 
@@ -408,6 +416,26 @@ namespace CrowdBot
             this.MyAgentComponentId = componentId;
 
             Say($"Hello, I am {Id}");
+            if(SavedTransform != null)
+            {
+                SavedTransform.ComponentId = MyAgentComponentId;
+                SavedTransform.ServerFrame = GetCurrentFrame();
+                Driver.RegionClient.SendPacket(SavedTransform);
+            }
+
+            if(SavedControllerInput != null) {
+                SavedControllerInput.Frame = GetCurrentFrame();
+                SavedControllerInput.AgentControllerId = MyAgentControllerId;
+                Driver.RegionClient.SendPacket(SavedControllerInput);
+            }
+
+            if(SavedAnimation != null)
+            {
+                SavedAnimation.AgentControllerId = MyAgentControllerId;
+                SavedAnimation.Frame = GetCurrentFrame();
+                SavedAnimation.ComponentId = MyAgentComponentId;
+                Driver.RegionClient.SendPacket(SavedAnimation);
+            }
         }
 
         private ulong GetCurrentFrame()

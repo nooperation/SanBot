@@ -17,6 +17,10 @@ namespace CrowdBot
         {
             public string Id { get; set; }
             public ConfigFile Credentials { get; set; }
+
+            public SanProtocol.AnimationComponent.CharacterTransformPersistent? SavedTransform { get; set; }
+            public SanProtocol.AgentController.AgentPlayAnimation? SavedAnimation { get; set; }
+            public SanProtocol.AgentController.CharacterControllerInputReliable? SavedControllerInput { get; set; }
         }
     }
 
@@ -95,6 +99,10 @@ namespace CrowdBot
         public void AddBot()
         {
             var config = BotConfigs.bots[CurrentBotIndex];
+            config.SavedAnimation = null;
+            config.SavedTransform = null;
+            config.SavedControllerInput = null;
+
             CurrentBotIndex = (CurrentBotIndex + 1) % BotConfigs.bots.Count;
 
             AddBot(config);
@@ -103,7 +111,7 @@ namespace CrowdBot
         public void AddBot(CrowdBotConfig.BotConfig config)
         {
             var botId = config.Id;
-            var bot = new CrowdBot(botId);
+            var bot = new CrowdBot(botId, config.SavedTransform, config.SavedControllerInput, config.SavedAnimation);
 
             int i = 1;
             while (!Bots.TryAdd(botId, bot))
@@ -140,18 +148,24 @@ namespace CrowdBot
             if (!Bots.TryGetValue(bot.Id, out var foundBot))
             {
                 Console.WriteLine("Bot_OnRequestRestartBot: Unknown bot source");
+                bot.Disconnect();
                 return;
             }
 
-            foundBot.Disconnect();
 
             var existingConfig = BotConfigs.bots.FirstOrDefault(n => n.Id == foundBot.Id);
             if(existingConfig == null)
             {
                 Console.WriteLine("Failed to find existing config?");
+                foundBot.Disconnect();
                 return;
             }
 
+            existingConfig.SavedAnimation = foundBot.SavedAnimation;
+            existingConfig.SavedTransform = foundBot.SavedTransform;
+            existingConfig.SavedControllerInput = foundBot.SavedControllerInput;
+
+            foundBot.Disconnect();
             BotsToAdd.Push(existingConfig);
         }
     }
