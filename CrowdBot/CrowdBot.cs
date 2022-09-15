@@ -13,11 +13,15 @@ using System.Web;
 using SanBot.Core.MessageHandlers;
 using System.Diagnostics;
 using SanProtocol.WorldState;
+using System.Net;
 
 namespace CrowdBot
 {
     public class CrowdBot
     {
+        public event EventHandler? OnRequestRestartBot;
+        public event EventHandler? OnRequestAddBot;
+
         public Driver Driver { get; set; }
         public Dictionary<uint, SanProtocol.ClientRegion.AddUser> PersonaSessionMap { get; } = new Dictionary<uint, SanProtocol.ClientRegion.AddUser>();
         public uint MyAgentControllerId { get; private set; }
@@ -29,7 +33,7 @@ namespace CrowdBot
         public long LastTimestampTicks { get; set; } = 0;
         public ulong LastTimestampFrame { get; set; } = 0;
         public long InitialTimestamp { get; set; } = 0;
-        public string MyName { get; set; } = "";
+        public string Id { get; set; } = "";
 
         Dictionary<uint, CreateAgentController> AgentControllersBySessionId { get; set; } = new System.Collections.Generic.Dictionary<uint, CreateAgentController>();
         public Dictionary<ulong, SanProtocol.AnimationComponent.CharacterTransform> ComponentPositionsByComponentId { get; set; } = new Dictionary<ulong, SanProtocol.AnimationComponent.CharacterTransform>();
@@ -39,7 +43,7 @@ namespace CrowdBot
 
         public bool FollowTargetMode { get; set; } = true;
         public int BufferMovementAmount { get; set; } = 5;
-
+        public bool IsRunning { get; set; } = false;
 
 
         public HashSet<SanUUID> OwnerPersonaIDs { get; set; } = new HashSet<SanUUID>();
@@ -50,27 +54,10 @@ namespace CrowdBot
             "vitaminc-0154"
         };
 
-        public CrowdBot(string name)
+       
+        public CrowdBot(string id)
         {
-            MyName = name;
-
-            ConfigFile config;
-            this.PersonaSessionMap = new Dictionary<uint, SanProtocol.ClientRegion.AddUser>();
-            var sanbotPath = Path.Join(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "SanBot"
-            );
-            var configPath = Path.Join(sanbotPath, "CrowdBot.config.json");
-
-            try
-            {
-                var configFileContents = File.ReadAllText(configPath);
-                config = Newtonsoft.Json.JsonConvert.DeserializeObject<ConfigFile>(configFileContents);
-            }
-            catch (Exception ex)
-            {
-                throw new Exception("Missing or invalid config.json", ex);
-            }
+            Id = id;
 
             Driver = new Driver();
             Driver.OnOutput += Driver_OnOutput;
@@ -103,18 +90,24 @@ namespace CrowdBot
 
             Driver.RegionClient.SimulationMessages.OnTimestamp += SimulationMessages_OnTimestamp;
             Driver.RegionClient.SimulationMessages.OnInitialTimestamp += SimulationMessages_OnInitialTimestamp;
-
-            Driver.StartAsync(config).Wait();
-
-            while (true)
-            {
-                if (!Driver.Poll())
-                {
-                    Thread.Sleep(1);
-                }
-            }
         }
 
+        public void Start(ConfigFile config)
+        {
+            IsRunning = true;
+            Driver.StartAsync(config).Wait();
+        }
+
+        public bool Poll()
+        {
+            if(!IsRunning)
+            {
+                return false;
+            }
+
+            Driver.Poll();
+            return IsRunning;
+        }
 
         private void AgentControllerMessages_OnCharacterControlPointInputReliable(object? sender, SanProtocol.AgentController.CharacterControlPointInputReliable e)
         {
@@ -382,13 +375,6 @@ namespace CrowdBot
         {
             var componentId = e.CharacterObjectId * 0x100000000ul;
 
-            if (e.PersonaId == Driver.MyPersonaDetails!.Id)
-            {
-                Say($"Hello I am {MyName}");
-                Output($"My AgentComponentId is {componentId}");
-                this.MyAgentComponentId = componentId;
-            }
-
             Output($"CreateAgentController: ControllerId={e.AgentControllerId} personaId={e.PersonaId} sessionId={e.SessionId} componentId={componentId}");
             AgentControllersBySessionId[e.SessionId] = e;
         }
@@ -400,10 +386,29 @@ namespace CrowdBot
 
         private void ClientRegionMessages_OnSetAgentController(object? sender, SanProtocol.ClientRegion.SetAgentController e)
         {
+
+            var myController = AgentControllersBySessionId
+                .Where(n => n.Value.AgentControllerId == e.AgentControllerId)
+                .Select(n => n.Value)
+                .FirstOrDefault();
+            if(myController == null)
+            {
+                Say("Error");
+                Output("Failed to find my controller..?");
+                return;
+            }
+
+            var componentId = myController.CharacterObjectId * 0x100000000ul;
+
+
             Output($"Agent controller has been set to {e.AgentControllerId}");
             this.MyAgentControllerId = e.AgentControllerId;
-        }
 
+            Output($"My AgentComponentId is {componentId}");
+            this.MyAgentComponentId = componentId;
+
+            Say($"Hello, I am {Id}");
+        }
 
         private ulong GetCurrentFrame()
         {
@@ -461,6 +466,9 @@ namespace CrowdBot
             Output($"{e.UserName} ({e.Handle} | {e.PersonaId}) Entered the region");
         }
 
+
+        Regex PatternAvatarId = new Regex("[0-9a-f]{32}");
+
         private void ClientKafkaMessages_OnRegionChat(object? sender, RegionChat e)
         {
             if (e.Message == "")
@@ -480,18 +488,23 @@ namespace CrowdBot
 
             Output($"Owner Message: {e.Message}");
 
+            if(e.Message.StartsWith('/'))
+            {
+                e.Message = e.Message[1..];
+            }
+
             var firstSpace = e.Message.IndexOf(' ');
             if(firstSpace == -1)
             {
                 return;
             }
 
-            var commandDestination = e.Message.Substring(0, firstSpace).ToLower().Trim();
-            var command = e.Message.Substring(firstSpace + 1).ToLower().Trim();
+            var commandDestination = e.Message[..firstSpace].ToLower().Trim();
+            var command = e.Message[(firstSpace + 1)..].ToLower().Trim();
 
             Output($"Owner Message: commandDestination={commandDestination} Command={command}");
 
-            if (commandDestination.ToLower() != MyName)
+            if (commandDestination != Id && commandDestination != Driver.MyPersonaDetails?.Name && commandDestination.ToLower() != Driver.MyPersonaDetails?.Handle.ToLower())
             {
                 return;
             }
@@ -514,7 +527,7 @@ namespace CrowdBot
             }
             if (command.StartsWith("follow "))
             {
-                var followTargetHandle = command.Substring(6).Trim();
+                var followTargetHandle = command[6..].Trim();
 
                 var persona = PersonaSessionMap
                     .Where(n => n.Value.Handle.ToLower() == followTargetHandle)
@@ -530,16 +543,95 @@ namespace CrowdBot
                 Output($"Start following {persona.UserName} ({persona.Handle})...");
                 StartFollowing(persona.SessionId);
             }
+            else if(command.StartsWith("clone "))
+            {
+                var cloneTargetHandle = command[6..].ToLower().Trim();
+
+                var targetAvatarAssetId = "";
+
+                if(Regex.IsMatch(cloneTargetHandle, "[0-9a-f]{32}"))
+                {
+                    targetAvatarAssetId = cloneTargetHandle;
+                }
+                else
+                {
+                    var persona = PersonaSessionMap
+                       .Where(n => n.Value.Handle.ToLower() == cloneTargetHandle)
+                       .Select(n => n.Value)
+                       .OrderBy(n => n.SessionId)
+                       .LastOrDefault();
+                    if (persona == null)
+                    {
+                        Say($"Could not find session for {cloneTargetHandle}");
+                        return;
+                    }
+
+                    var match = Regex.Match(persona.AvatarType, @"avatarAssetId\s*=\s*""(?<avatarAssetId>ERROR|[a-zA-Z0-9]{32})""");
+                    if (!match.Success)
+                    {
+                        Say($"Failed to parse avatar type for {cloneTargetHandle}");
+                        return;
+                    }
+
+                    targetAvatarAssetId = match.Groups["avatarAssetId"].Value;
+                }
+
+                if(!AvatarAssetIdExists(targetAvatarAssetId))
+                {
+                    Say($"Could not find avatar asset for {cloneTargetHandle}");
+                    return;
+                }
+
+                Driver.WebApi.SetAvatarIdAsync(Driver.MyPersonaDetails.Id, targetAvatarAssetId);
+
+                Say("Ok, changing");
+                OnRequestRestartBot?.Invoke(this, new EventArgs());
+                Driver.Disconnect();
+            }
+            else if(command == "add")
+            {
+                Say("Ok");
+                OnRequestAddBot?.Invoke(this, new EventArgs());
+            }
             else if(command == "stop")
             {
                 Output($"Stop following");
+                Say("Ok");
                 StopFollowing();
             }
             else if(command == "exit")
             {
-
-                StopFollowing();
+                Say("Bye");
+                Disconnect();
             }
+        }
+
+        public void Disconnect()
+        {
+            StopFollowing();
+            IsRunning = false;
+            Driver.Disconnect();
+        }
+
+        public bool AvatarAssetIdExists(string avatarAssetId)
+        {
+            try
+            {
+                var assetUri = @$"https://sansar-asset-production.s3-us-west-2.amazonaws.com/{avatarAssetId}.Cluster-Source.v1.manifest.v0.noVariants";
+                using (var client = new WebClient())
+                {
+                    using (var readStream = client.OpenRead(assetUri))
+                    {
+                        readStream.ReadByte();
+                    }
+                }
+            }
+            catch
+            {
+                return false;
+            }
+
+            return true;
         }
 
         public void StartFollowing(uint sessionId)
@@ -574,7 +666,6 @@ namespace CrowdBot
 
         public void StopFollowing()
         {
-            Say("Ok");
             TargetAgentControllerIds.Clear();
             TargetAgentComponentIds.Clear();
         }
@@ -618,7 +709,7 @@ namespace CrowdBot
             Output(message, sender?.GetType().Name ?? "Bot");
         }
 
-        public void Output(string str, string sender = nameof(CrowdBot))
+        public void Output(string str, string? sender = nameof(CrowdBot))
         {
             var date = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
 
@@ -627,7 +718,7 @@ namespace CrowdBot
             var lines = str.Replace("\r", "").Split("\n");
             foreach (var line in lines)
             {
-                finalOutput += $"{date} [{sender}] {line}{Environment.NewLine}";
+                finalOutput += $"{date} [{Id}] [{sender}] {line}{Environment.NewLine}";
             }
 
             Console.Write(finalOutput);
@@ -647,17 +738,21 @@ namespace CrowdBot
 
             Output("Kafka client logged in successfully");
 
+            //if(CloneAvatarTarget != "" && CloneAvatarTarget.Length == 32)
+            //{
+            //    Driver.WebApi.SetAvatarIdAsync(Driver.MyPersonaDetails.Id, CloneAvatarTarget).Wait();
+            //}
             // mark
             //Driver.WebApi.SetAvatarIdAsync(Driver.MyPersonaDetails.Id, "0fd910bd763fa45580de460cb6f76c57").Wait();
-            
+
             // dnaelite
             //Driver.WebApi.SetAvatarIdAsync(Driver.MyPersonaDetails.Id, "404e7e026b53ce8a8721d2fc3657f37f").Wait();
 
             // default bot
-         //   Driver.WebApi.SetAvatarIdAsync(Driver.MyPersonaDetails.Id, "43668ab727c00fd7d33a5af1085493dd").Wait();
+            //   Driver.WebApi.SetAvatarIdAsync(Driver.MyPersonaDetails.Id, "43668ab727c00fd7d33a5af1085493dd").Wait();
 
-           // Driver.JoinRegion("djm3n4c3-9174", "dj-s-outside-fun2").Wait();
-          ///  Driver.JoinRegion("sansar-studios", "social-hub").Wait();
+            // Driver.JoinRegion("djm3n4c3-9174", "dj-s-outside-fun2").Wait();
+            ///  Driver.JoinRegion("sansar-studios", "social-hub").Wait();
             // Driver.JoinRegion("nopnop", "unit").Wait();
             //Driver.JoinRegion("mijekamunro", "gone-grid-city-prime-millenium").Wait();
             Driver.JoinRegion("nopnopnop", "owo").Wait();
