@@ -23,25 +23,14 @@ namespace CrowdBot
         public event EventHandler? OnRequestAddBot;
 
         public Driver Driver { get; set; }
-        public Dictionary<uint, SanProtocol.ClientRegion.AddUser> PersonaSessionMap { get; } = new Dictionary<uint, SanProtocol.ClientRegion.AddUser>();
-        public uint MyAgentControllerId { get; private set; }
-        public ulong MyAgentComponentId { get; private set; }
 
-        public HashSet<ulong> TargetAgentControllerIds { get; set; } = new HashSet<ulong>();
-        public HashSet<ulong> TargetAgentComponentIds { get; set; } = new HashSet<ulong>();
+        public HashSet<PersonaData> TargetPersonas { get; set; } = new HashSet<PersonaData>();
 
-        public long LastTimestampTicks { get; set; } = 0;
-        public ulong LastTimestampFrame { get; set; } = 0;
-        public long InitialTimestamp { get; set; } = 0;
         public string Id { get; set; } = "";
-
-        Dictionary<uint, CreateAgentController> AgentControllersBySessionId { get; set; } = new System.Collections.Generic.Dictionary<uint, CreateAgentController>();
-        public Dictionary<ulong, SanProtocol.AnimationComponent.CharacterTransform> ComponentPositionsByComponentId { get; set; } = new Dictionary<ulong, SanProtocol.AnimationComponent.CharacterTransform>();
 
         public bool FollowTargetMode { get; set; } = true;
         public bool IsRunning { get; set; } = false;
 
-        public HashSet<SanUUID> OwnerPersonaIDs { get; set; } = new HashSet<SanUUID>();
         public HashSet<string> OwnerHandles { get; set; } = new HashSet<string>() {
             "nop",
             "nopnop",
@@ -68,8 +57,6 @@ namespace CrowdBot
             Driver.KafkaClient.ClientKafkaMessages.OnRegionChat += ClientKafkaMessages_OnRegionChat;
 
             Driver.RegionClient.ClientRegionMessages.OnUserLoginReply += ClientRegionMessages_OnUserLoginReply;
-            Driver.RegionClient.ClientRegionMessages.OnAddUser += ClientRegionMessages_OnAddUser;
-            Driver.RegionClient.ClientRegionMessages.OnRemoveUser += ClientRegionMessages_OnRemoveUser;
             Driver.RegionClient.ClientRegionMessages.OnSetAgentController += ClientRegionMessages_OnSetAgentController;
 
             Driver.RegionClient.AnimationComponentMessages.OnCharacterTransform += AnimationComponentMessages_OnCharacterTransform;
@@ -85,12 +72,8 @@ namespace CrowdBot
             Driver.RegionClient.AgentControllerMessages.OnCharacterControlPointInput += AgentControllerMessages_OnCharacterControlPointInput;
             Driver.RegionClient.AgentControllerMessages.OnCharacterControlPointInputReliable += AgentControllerMessages_OnCharacterControlPointInputReliable;
 
-            Driver.RegionClient.WorldStateMessages.OnCreateAgentController += WorldStateMessages_OnCreateAgentController;
-            Driver.RegionClient.WorldStateMessages.OnDestroyAgentController += WorldStateMessages_OnDestroyAgentController;
             Driver.RegionClient.WorldStateMessages.OnDestroyCluster += WorldStateMessages_OnDestroyCluster;
 
-            Driver.RegionClient.SimulationMessages.OnTimestamp += SimulationMessages_OnTimestamp;
-            Driver.RegionClient.SimulationMessages.OnInitialTimestamp += SimulationMessages_OnInitialTimestamp;
         }
 
         public void Start(ConfigFile config)
@@ -112,11 +95,16 @@ namespace CrowdBot
 
         private void AgentControllerMessages_OnCharacterControlPointInputReliable(object? sender, SanProtocol.AgentController.CharacterControlPointInputReliable e)
         {
-            if (e.AgentControllerId != MyAgentControllerId)
+            if(Driver.MyPersonaData == null || Driver.MyPersonaData.AgentControllerId == null)
+            {
+                return;
+            }
+
+            if (e.AgentControllerId != Driver.MyPersonaData.AgentControllerId)
             {
                 Driver.RegionClient.SendPacket(new SanProtocol.AgentController.CharacterControlPointInputReliable(
-                    GetCurrentFrame(),
-                    MyAgentControllerId,
+                    Driver.GetCurrentFrame(),
+                    Driver.MyPersonaData.AgentControllerId.Value,
                     e.ControlPoints,
                     e.LeftIndexTrigger,
                     e.RightIndexTrigger,
@@ -133,11 +121,16 @@ namespace CrowdBot
 
         private void AgentControllerMessages_OnCharacterControlPointInput(object? sender, SanProtocol.AgentController.CharacterControlPointInput e)
         {
-            if (e.AgentControllerId != MyAgentControllerId)
+            if (Driver.MyPersonaData == null || Driver.MyPersonaData.AgentControllerId == null)
+            {
+                return;
+            }
+
+            if (e.AgentControllerId != Driver.MyPersonaData.AgentControllerId)
             {
                 Driver.RegionClient.SendPacket(new SanProtocol.AgentController.CharacterControlPointInput(
-                    GetCurrentFrame(),
-                    MyAgentControllerId,
+                    Driver.GetCurrentFrame(),
+                    Driver.MyPersonaData.AgentControllerId.Value,
                     e.ControlPoints,
                     e.LeftIndexTrigger,
                     e.RightIndexTrigger,
@@ -154,11 +147,16 @@ namespace CrowdBot
 
         private void AgentControllerMessages_OnCharacterIKPoseDelta(object? sender, SanProtocol.AgentController.CharacterIKPoseDelta e)
         {
-            if (false && e.AgentControllerId != MyAgentControllerId)
+            if (Driver.MyPersonaData == null || Driver.MyPersonaData.AgentControllerId == null)
+            {
+                return;
+            }
+
+            if (false && e.AgentControllerId != Driver.MyPersonaData.AgentControllerId)
             {
                 Driver.RegionClient.SendPacket(new SanProtocol.AgentController.CharacterIKPoseDelta(
-                    MyAgentControllerId,
-                    GetCurrentFrame(),
+                    Driver.MyPersonaData.AgentControllerId.Value,
+                    Driver.GetCurrentFrame(),
                     e.BoneRotations,
                     e.RootBoneTranslationDelta
                 ));
@@ -167,11 +165,16 @@ namespace CrowdBot
 
         private void AgentControllerMessages_OnCharacterIKPose(object? sender, SanProtocol.AgentController.CharacterIKPose e)
         {
-            if (false && e.AgentControllerId != MyAgentControllerId)
+            if (Driver.MyPersonaData == null || Driver.MyPersonaData.AgentControllerId == null)
+            {
+                return;
+            }
+
+            if (false && e.AgentControllerId != Driver.MyPersonaData.AgentControllerId)
             {
                 Driver.RegionClient.SendPacket(new SanProtocol.AgentController.CharacterIKPose(
-                    MyAgentControllerId,
-                    GetCurrentFrame(),
+                    Driver.MyPersonaData.AgentControllerId.Value,
+                    Driver.GetCurrentFrame(),
                     e.BoneRotations,
                     e.RootBoneTranslation
                 ));
@@ -180,322 +183,212 @@ namespace CrowdBot
 
         private void AnimationComponentMessages_OnPlayAnimation(object? sender, SanProtocol.AnimationComponent.PlayAnimation e)
         {
-            if (TargetAgentComponentIds.Contains(e.ComponentId))
+            if (Driver.MyPersonaData == null || Driver.MyPersonaData.AgentControllerId == null || Driver.MyPersonaData.AgentComponentId == null)
             {
-                var animationPacket = new SanProtocol.AgentController.AgentPlayAnimation(
-                    MyAgentControllerId,
-                    GetCurrentFrame(),
-                    MyAgentComponentId,
-                    e.ResourceId,
-                    e.PlaybackSpeed,
-                    e.SkeletonType,
-                    e.AnimationType,
-                    e.PlaybackMode
-                );
-
-                Driver.RegionClient.SendPacket(animationPacket);
-                SavedAnimation = animationPacket;
+                return;
             }
+
+            var persona = TargetPersonas
+                .Where(n => n.AgentComponentId == e.ComponentId)
+                .FirstOrDefault();
+            if(persona == null)
+            {
+                return;
+            }
+
+            var animationPacket = new SanProtocol.AgentController.AgentPlayAnimation(
+                Driver.MyPersonaData.AgentControllerId.Value,
+                Driver.GetCurrentFrame(),
+                Driver.MyPersonaData.AgentComponentId.Value,
+                e.ResourceId,
+                e.PlaybackSpeed,
+                e.SkeletonType,
+                e.AnimationType,
+                e.PlaybackMode
+            );
+
+            Driver.RegionClient.SendPacket(animationPacket);
+            SavedAnimation = animationPacket;
         }
 
         private void AnimationComponentMessages_OnBehaviorStateUpdate(object? sender, SanProtocol.AnimationComponent.BehaviorStateUpdate e)
         {
-            if (TargetAgentComponentIds.Contains(e.ComponentId))
+            if (Driver.MyPersonaData == null || Driver.MyPersonaData.AgentControllerId == null || Driver.MyPersonaData.AgentComponentId == null)
             {
-               Driver.RegionClient.SendPacket(new SanProtocol.AgentController.RequestBehaviorStateUpdate(
-                   GetCurrentFrame(),
-                   MyAgentComponentId,
-                   MyAgentControllerId,
-                   e.Floats,
-                   e.Vectors,
-                   e.Quaternions,
-                   e.Int8s,
-                   e.Bools,
-                   e.InternalEventIds,
-                   e.AnimationAction,
-                   e.NodeLocalTimes,
-                   e.NodeCropValues
-               ));
+                return;
             }
+
+            var persona = TargetPersonas
+                .Where(n => n.AgentComponentId == e.ComponentId)
+                .FirstOrDefault();
+            if (persona == null)
+            {
+                return;
+            }
+
+            Driver.RegionClient.SendPacket(new SanProtocol.AgentController.RequestBehaviorStateUpdate(
+                Driver.GetCurrentFrame(),
+                Driver.MyPersonaData.AgentComponentId.Value,
+                Driver.MyPersonaData.AgentControllerId.Value,
+                e.Floats,
+                e.Vectors,
+                e.Quaternions,
+                e.Int8s,
+                e.Bools,
+                e.InternalEventIds,
+                e.AnimationAction,
+                e.NodeLocalTimes,
+                e.NodeCropValues
+            ));
         }
 
         private void AgentControllerMessages_OnCharacterControllerInputReliable(object? sender, SanProtocol.AgentController.CharacterControllerInputReliable e)
         {
-            if (TargetAgentControllerIds.Contains(e.AgentControllerId))
+            if (Driver.MyPersonaData == null || Driver.MyPersonaData.AgentControllerId == null)
             {
-                if (Math.Abs(e.MoveForward) > 0.0001f || Math.Abs(e.MoveRight) > 0.0001f)
-                {
-                    SavedAnimation = null;
-                }
-
-                var controllerInputPacket = new SanProtocol.AgentController.CharacterControllerInputReliable(
-                    GetCurrentFrame(),
-                    MyAgentControllerId,
-                    e.JumpState,
-                    e.JumpBtnPressed,
-                    e.MoveRight,
-                    e.MoveForward,
-                    e.CameraYaw,
-                    e.CameraPitch,
-                    e.BehaviorYawDelta,
-                    e.BehaviorPitchDelta,
-                    e.CharacterForward,
-                    e.CameraForward
-                );
-
-                Driver.RegionClient.SendPacket(controllerInputPacket);
-                SavedControllerInput = controllerInputPacket;
+                return;
             }
+
+            var persona = TargetPersonas
+                .Where(n => n.AgentControllerId == e.AgentControllerId)
+                .FirstOrDefault();
+            if (persona == null)
+            {
+                return;
+            }
+
+            if (Math.Abs(e.MoveForward) > 0.0001f || Math.Abs(e.MoveRight) > 0.0001f)
+            {
+                SavedAnimation = null;
+            }
+
+            var controllerInputPacket = new SanProtocol.AgentController.CharacterControllerInputReliable(
+                Driver.GetCurrentFrame(),
+                Driver.MyPersonaData.AgentControllerId.Value,
+                e.JumpState,
+                e.JumpBtnPressed,
+                e.MoveRight,
+                e.MoveForward,
+                e.CameraYaw,
+                e.CameraPitch,
+                e.BehaviorYawDelta,
+                e.BehaviorPitchDelta,
+                e.CharacterForward,
+                e.CameraForward
+            );
+
+            Driver.RegionClient.SendPacket(controllerInputPacket);
+            SavedControllerInput = controllerInputPacket;
         }
 
         private void AgentControllerMessages_OnCharacterControllerInput(object? sender, SanProtocol.AgentController.CharacterControllerInput e)
         {
-            if (TargetAgentControllerIds.Contains(e.AgentControllerId))
+            if (Driver.MyPersonaData == null || Driver.MyPersonaData.AgentControllerId == null)
             {
-                if(Math.Abs(e.MoveForward) > 0.0001f || Math.Abs(e.MoveRight) > 0.0001f)
-                {
-                    SavedAnimation = null;
-                }
-                
-                Driver.RegionClient.SendPacket(new SanProtocol.AgentController.CharacterControllerInput(
-                    GetCurrentFrame(),
-                    MyAgentControllerId,
-                    e.JumpState,
-                    e.JumpBtnPressed,
-                    e.MoveRight,
-                    e.MoveForward,
-                    e.CameraYaw,
-                    e.CameraPitch,
-                    e.BehaviorYawDelta,
-                    e.BehaviorPitchDelta,
-                    e.CharacterForward,
-                    e.CameraForward
-                ));
+                return;
             }
+
+            if(Math.Abs(e.MoveForward) > 0.0001f || Math.Abs(e.MoveRight) > 0.0001f)
+            {
+                SavedAnimation = null;
+            }
+                
+            Driver.RegionClient.SendPacket(new SanProtocol.AgentController.CharacterControllerInput(
+                Driver.GetCurrentFrame(),
+                Driver.MyPersonaData.AgentControllerId.Value,
+                e.JumpState,
+                e.JumpBtnPressed,
+                e.MoveRight,
+                e.MoveForward,
+                e.CameraYaw,
+                e.CameraPitch,
+                e.BehaviorYawDelta,
+                e.BehaviorPitchDelta,
+                e.CharacterForward,
+                e.CameraForward
+            ));
         }
 
         private void WorldStateMessages_OnDestroyCluster(object? sender, SanProtocol.WorldState.DestroyCluster e)
         {
-            var componentId = e.ClusterId * 0x100000000ul;
-
-            if (TargetAgentComponentIds.Contains(componentId))
+            var persona = TargetPersonas
+                .Where(n => n.ClusterId == e.ClusterId)
+                .FirstOrDefault();
+            if (persona == null)
             {
-                TargetAgentComponentIds.Remove(componentId);
-            }
-        }
-
-        void SetPosition(List<float> position, Quaternion quat, ulong groundComponentId, bool ignoreDistanceCheck, bool isPersistent)
-        {
-            if (position.Count != 3)
-            {
-                throw new Exception($"{nameof(SetPosition)} Expected float3 position, got float{position.Count}");
+                return;
             }
 
-            if (isPersistent)
-            {
-                Output("CharacterTransformPersistent");
-                Driver.RegionClient.SendPacket(new SanProtocol.AnimationComponent.CharacterTransformPersistent(
-                    MyAgentComponentId,
-                    GetCurrentFrame(),
-                    groundComponentId,
-                    new List<float>()
-                    {
-                      position[0],
-                      position[1],
-                      position[2],
-                    },
-                    quat
-                ));
-            }
-            else
-            {
-                Output("CharacterTransform");
-                Driver.RegionClient.SendPacket(new SanProtocol.AnimationComponent.CharacterTransform(
-                    MyAgentComponentId,
-                    GetCurrentFrame(),
-                    groundComponentId,
-                    new List<float>()
-                    {
-                        position[0],
-                        position[1],
-                        position[2],
-                    },
-                    quat
-                ));
-            }
-        }
-
-        void WarpToPosition(List<float> position3, List<float> rotation4)
-        {
-            if (position3.Count != 3)
-            {
-                throw new Exception($"{nameof(SetPosition)} Expected float3 position, got float{position3.Count}");
-            }
-            if (rotation4.Count != 4)
-            {
-                throw new Exception($"{nameof(rotation4)} Expected float4 rotation, got float{rotation4.Count}");
-            }
-
-            Driver.RegionClient.SendPacket(new SanProtocol.AgentController.WarpCharacter(
-                GetCurrentFrame(),
-                MyAgentControllerId,
-                position3[0],
-                position3[1],
-                position3[2],
-                rotation4[0],
-                rotation4[1],
-                rotation4[2],
-                rotation4[3]
-            ));
+            TargetPersonas.RemoveWhere(n => n.ClusterId == e.ClusterId);
         }
 
         private void AnimationComponentMessages_OnCharacterTransformPersistent(object? sender, SanProtocol.AnimationComponent.CharacterTransformPersistent e)
         {
-            ComponentPositionsByComponentId[e.ComponentId] = e;
-
-            if (TargetAgentComponentIds.Contains(e.ComponentId))
+            var persona = TargetPersonas
+                .Where(n => n.AgentComponentId == e.ComponentId)
+                .FirstOrDefault();
+            if (persona == null)
             {
-                if (FollowTargetMode)
-                {
-                    if(SavedAnimation == null)
-                    {
-                        SavedTransform = e;
-                    }
+                return;
+            }
 
-                    SetPosition(e.Position, e.OrientationQuat, e.GroundComponentId, true, true);
+            if (FollowTargetMode)
+            {
+                if(SavedAnimation == null)
+                {
+                    SavedTransform = e;
                 }
+
+                Driver.SetPosition(e.Position, e.OrientationQuat, e.GroundComponentId, true);
             }
         }
 
         private void AnimationComponentMessages_OnCharacterTransform(object? sender, SanProtocol.AnimationComponent.CharacterTransform e)
         {
-            ComponentPositionsByComponentId[e.ComponentId] = e;
-
-            if (TargetAgentComponentIds.Contains(e.ComponentId))
+            var persona = TargetPersonas
+                .Where(n => n.AgentComponentId == e.ComponentId)
+                .FirstOrDefault();
+            if (persona == null)
             {
-                if (FollowTargetMode)
-                {
-                    SetPosition(e.Position, e.OrientationQuat, e.GroundComponentId, false, false);
-                }
+                return;
             }
-        }
 
-        private void WorldStateMessages_OnCreateAgentController(object? sender, SanProtocol.WorldState.CreateAgentController e)
-        {
-            var componentId = e.CharacterObjectId * 0x100000000ul;
-
-            Output($"CreateAgentController: ControllerId={e.AgentControllerId} personaId={e.PersonaId} sessionId={e.SessionId} componentId={componentId}");
-            AgentControllersBySessionId[e.SessionId] = e;
-        }
-
-        private void WorldStateMessages_OnDestroyAgentController(object? sender, SanProtocol.WorldState.DestroyAgentController e)
-        {
-            TargetAgentControllerIds.Remove(e.AgentControllerId);
+            if (FollowTargetMode)
+            {
+                Driver.SetPosition(e.Position, e.OrientationQuat, e.GroundComponentId, false);
+            }
         }
 
         private void ClientRegionMessages_OnSetAgentController(object? sender, SanProtocol.ClientRegion.SetAgentController e)
         {
-
-            var myController = AgentControllersBySessionId
-                .Where(n => n.Value.AgentControllerId == e.AgentControllerId)
-                .Select(n => n.Value)
-                .FirstOrDefault();
-            if(myController == null)
+            if (Driver.MyPersonaData == null || Driver.MyPersonaData.AgentControllerId == null || Driver.MyPersonaData.AgentComponentId == null)
             {
-                Say("Failed to find my controller..?");
+                Output("Agent Controller has been set, but MyPersonaData is null or missing data?");
                 return;
             }
-
-            var componentId = myController.CharacterObjectId * 0x100000000ul;
-
-
-            Output($"Agent controller has been set to {e.AgentControllerId}");
-            this.MyAgentControllerId = e.AgentControllerId;
-
-            Output($"My AgentComponentId is {componentId}");
-            this.MyAgentComponentId = componentId;
 
             Say($"Hello, I am {Id}");
             if(SavedTransform != null)
             {
-                SavedTransform.ComponentId = MyAgentComponentId;
-                SavedTransform.ServerFrame = GetCurrentFrame();
+                SavedTransform.ComponentId = Driver.MyPersonaData.AgentComponentId.Value;
+                SavedTransform.ServerFrame = Driver.GetCurrentFrame();
                 Driver.RegionClient.SendPacket(SavedTransform);
             }
 
             if(SavedControllerInput != null) {
-                SavedControllerInput.Frame = GetCurrentFrame();
-                SavedControllerInput.AgentControllerId = MyAgentControllerId;
+                SavedControllerInput.Frame = Driver.GetCurrentFrame();
+                SavedControllerInput.AgentControllerId = Driver.MyPersonaData.AgentControllerId.Value;
                 Driver.RegionClient.SendPacket(SavedControllerInput);
             }
 
             if(SavedAnimation != null)
             {
-                SavedAnimation.AgentControllerId = MyAgentControllerId;
-                SavedAnimation.Frame = GetCurrentFrame();
-                SavedAnimation.ComponentId = MyAgentComponentId;
+                SavedAnimation.AgentControllerId = Driver.MyPersonaData.AgentControllerId.Value;
+                SavedAnimation.Frame = Driver.GetCurrentFrame();
+                SavedAnimation.ComponentId = Driver.MyPersonaData.AgentComponentId.Value;
                 Driver.RegionClient.SendPacket(SavedAnimation);
             }
         }
-
-        private ulong GetCurrentFrame()
-        {
-            if (LastTimestampTicks == 0)
-            {
-                return LastTimestampFrame;
-            }
-
-            const float kFrameFrequency = 1000.0f / 90.0f;
-
-            var millisecondsSinceLastTimestamp = ((DateTime.Now.Ticks - LastTimestampTicks)) / 10000;
-            var totalFramesSinceLastTimestamp = millisecondsSinceLastTimestamp / kFrameFrequency;
-
-            return LastTimestampFrame + (ulong)totalFramesSinceLastTimestamp;
-        }
-
-        private void SimulationMessages_OnInitialTimestamp(object? sender, SanProtocol.Simulation.InitialTimestamp e)
-        {
-            Output($"InitialTimestamp {e.Frame} | {e.Nanoseconds}");
-
-            LastTimestampFrame = e.Frame;
-            LastTimestampTicks = DateTime.Now.Ticks;
-            InitialTimestamp = DateTimeOffset.Now.ToUnixTimeMilliseconds();
-        }
-
-        private void SimulationMessages_OnTimestamp(object? sender, SanProtocol.Simulation.Timestamp e)
-        {
-            //Output($"Server frame: {e.Frame} Client frame: {GetCurrentFrame()} | Diff={(long)e.Frame - (long)GetCurrentFrame()}");
-            LastTimestampFrame = e.Frame;
-            LastTimestampTicks = DateTime.Now.Ticks;
-        }
-
-        private void ClientRegionMessages_OnRemoveUser(object? sender, SanProtocol.ClientRegion.RemoveUser e)
-        {
-            if (!PersonaSessionMap.ContainsKey(e.SessionId))
-            {
-                Output($"<session {e.SessionId}> Left the region");
-            }
-            else
-            {
-                var source = PersonaSessionMap[e.SessionId];
-                Output($"{source.UserName} ({source.Handle}) Left the region");
-                PersonaSessionMap.Remove(e.SessionId);
-            }
-        }
-
-        private void ClientRegionMessages_OnAddUser(object? sender, SanProtocol.ClientRegion.AddUser e)
-        {
-            PersonaSessionMap[e.SessionId] = e;
-
-            if (OwnerHandles.Contains(e.Handle.ToLower())) {
-                OwnerPersonaIDs.Add(e.PersonaId);
-            }
-
-            Output($"{e.UserName} ({e.Handle} | {e.PersonaId}) Entered the region");
-        }
-
-
-        Regex PatternAvatarId = new Regex("[0-9a-f]{32}");
 
         private void ClientKafkaMessages_OnRegionChat(object? sender, RegionChat e)
         {
@@ -504,18 +397,26 @@ namespace CrowdBot
                 return;
             }
 
-            if(!OwnerPersonaIDs.Contains(e.FromPersonaId))
+            if (Driver.InitialTimestamp == 0 || e.Timestamp < Driver.InitialTimestamp)
             {
                 return;
             }
 
-            if (InitialTimestamp == 0 || e.Timestamp < InitialTimestamp)
+            var sourcePersona = Driver.PersonasBySessionId
+                .Where(n => n.Value.PersonaId == e.FromPersonaId)
+                .Select(n => n.Value)
+                .FirstOrDefault();
+            if(sourcePersona == null)
+            {
+                return;
+            }
+
+            if(!OwnerHandles.Contains(sourcePersona.Handle))
             {
                 return;
             }
 
             Output($"Owner Message: {e.Message}");
-
             if(e.Message.StartsWith('/'))
             {
                 e.Message = e.Message[1..];
@@ -539,7 +440,7 @@ namespace CrowdBot
 
             if (command == "follow")
             {
-                var persona = PersonaSessionMap
+                var persona = Driver.PersonasBySessionId
                     .Where(n => n.Value.PersonaId == e.FromPersonaId)
                     .Select(n => n.Value)
                     .OrderBy(n => n.SessionId)
@@ -551,13 +452,13 @@ namespace CrowdBot
                 }
 
                 Output($"Start following {persona.Handle}...");
-                StartFollowing(persona.SessionId);
+                StartFollowing(persona);
             }
             if (command.StartsWith("follow "))
             {
                 var followTargetHandle = command[6..].Trim();
 
-                var persona = PersonaSessionMap
+                var persona = Driver.PersonasBySessionId
                     .Where(n => n.Value.Handle.ToLower() == followTargetHandle)
                     .Select(n => n.Value)
                     .OrderBy(n => n.SessionId)
@@ -569,7 +470,7 @@ namespace CrowdBot
                 }
 
                 Output($"Start following {persona.UserName} ({persona.Handle})...");
-                StartFollowing(persona.SessionId);
+                StartFollowing(persona);
             }
             else if(command.StartsWith("clone "))
             {
@@ -583,7 +484,7 @@ namespace CrowdBot
                 }
                 else
                 {
-                    var persona = PersonaSessionMap
+                    var persona = Driver.PersonasBySessionId
                        .Where(n => n.Value.Handle.ToLower() == cloneTargetHandle)
                        .Select(n => n.Value)
                        .OrderBy(n => n.SessionId)
@@ -610,7 +511,7 @@ namespace CrowdBot
                     return;
                 }
 
-                Driver.WebApi.SetAvatarIdAsync(Driver.MyPersonaDetails.Id, targetAvatarAssetId);
+                Driver.WebApi.SetAvatarIdAsync(Driver.MyPersonaDetails.Id, targetAvatarAssetId).Wait();
 
                 Say("Ok, changing");
                 OnRequestRestartBot?.Invoke(this, new EventArgs());
@@ -662,40 +563,28 @@ namespace CrowdBot
             return true;
         }
 
-        public void StartFollowing(uint sessionId)
+        public void StartFollowing(PersonaData persona)
         {
-            if(!PersonaSessionMap.TryGetValue(sessionId, out var session))
+            if(persona.AgentControllerId == null)
             {
-                Say("Invalid session id");
+                Output("Could not follow because we don't know what this user's controlelr id is yet");
                 return;
             }
 
-            if(!AgentControllersBySessionId.TryGetValue(sessionId, out var agentController))
+            TargetPersonas.Clear();
+            TargetPersonas.Add(persona);
+
+            if (persona.LastTransform != null)
             {
-                Say($"I can't find {session.UserName}'s controller");
-                return;
+                Driver.SetPosition(persona.LastTransform.Position, persona.LastTransform.OrientationQuat, persona.LastTransform.GroundComponentId, true);
             }
 
-            var componentId = agentController.CharacterObjectId * 0x100000000ul;
-
-            TargetAgentControllerIds.Clear();
-            TargetAgentControllerIds.Add(agentController.AgentControllerId);
-
-            TargetAgentComponentIds.Clear();
-            TargetAgentComponentIds.Add(componentId);
-
-            if(ComponentPositionsByComponentId.TryGetValue(componentId, out var lastTransform))
-            {
-                SetPosition(lastTransform.Position, lastTransform.OrientationQuat, lastTransform.GroundComponentId, true, true);
-            }
-
-            Say($"Started following {session.UserName} ({session.Handle})");
+            Say($"Started following {persona.UserName} ({persona.Handle})");
         }
 
         public void StopFollowing()
         {
-            TargetAgentControllerIds.Clear();
-            TargetAgentComponentIds.Clear();
+            TargetPersonas.Clear();
         }
 
         private void ClientRegionMessages_OnUserLoginReply(object? sender, SanProtocol.ClientRegion.UserLoginReply e)
@@ -783,6 +672,8 @@ namespace CrowdBot
             ///  Driver.JoinRegion("sansar-studios", "social-hub").Wait();
             // Driver.JoinRegion("nopnop", "unit").Wait();
             //Driver.JoinRegion("mijekamunro", "gone-grid-city-prime-millenium").Wait();
+
+           // Driver.JoinRegion("mijekamunro", "bingo-oracle").Wait();
             Driver.JoinRegion("nopnopnop", "owo").Wait();
         }
     }

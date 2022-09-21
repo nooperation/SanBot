@@ -9,7 +9,6 @@
 
   <ItemGroup>
     <PackageReference Include="Google.Cloud.Translate.V3" Version="3.0.0" />
-    <PackageReference Include="LanguageDetection" Version="1.2.0" />
   </ItemGroup>
 
   <ItemGroup>
