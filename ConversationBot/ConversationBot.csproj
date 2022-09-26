@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net6.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Concentus" Version="1.1.7" />
+    <PackageReference Include="NAudio" Version="2.1.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SanBot.Core\SanBot.Core\SanBot.Core.csproj" />
+    <ProjectReference Include="..\SanProtocol\SanProtocol\SanProtocol.csproj" />
+    <ProjectReference Include="..\SanWebApi\SanWebApi\SanWebApi.csproj" />
+  </ItemGroup>
+
+</Project>
