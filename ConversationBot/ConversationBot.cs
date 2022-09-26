@@ -16,6 +16,7 @@ using System.Diagnostics;
 using Concentus.Structs;
 using NAudio.Wave;
 using System.Net;
+using System.Collections.Concurrent;
 
 namespace EchoBot
 {
@@ -81,6 +82,9 @@ namespace EchoBot
 
             Stopwatch watch = new Stopwatch();
 
+            _IsConversationThreadRunning = true;
+            ConversationThread = new Thread(new ThreadStart(ConversationThreadEntrypoint));
+            ConversationThread.Start();
 
             while (true)
             {
@@ -90,9 +94,27 @@ namespace EchoBot
                     {
                         conversation.Value.Poll();
                     }
-
                     //Thread.Sleep(10);
                 }
+            }
+
+            _IsConversationThreadRunning = false;
+            ConversationThread.Join();
+
+        }
+
+        public Thread ConversationThread { get; set; }
+        volatile bool _IsConversationThreadRunning = false;
+        public void ConversationThreadEntrypoint()
+        {
+            while(_IsConversationThreadRunning)
+            {
+                foreach (var conversation in ConversationsByAgentControllerId)
+                {
+                    conversation.Value.ProcessVoiceBufferQueue();
+                }
+
+                Thread.Sleep(10);
             }
         }
 
@@ -114,9 +136,11 @@ namespace EchoBot
             public Driver Driver { get; set; }
 
             public int Id { get; set; }
-            public List<byte[]> VoiceBuffer { get; set; } = new List<byte[]>();
             public DateTime? TimeWeStartedListeningToTarget { get; set; } = null;
             public DateTime? LastTimeWeListened { get; set; } = null;
+
+            public List<byte[]> VoiceBuffer { get; set; } = new List<byte[]>();
+            public ConcurrentQueue<List<byte[]>> VoiceBufferQueue = new ConcurrentQueue<List<byte[]>>();
 
             public VoiceConversation(PersonaData persona, Driver driver)
             {
@@ -142,7 +166,7 @@ namespace EchoBot
 
             public void Poll()
             {
-                if(this.VoiceBuffer.Count == 0)
+                if(VoiceBuffer.Count == 0)
                 {
                     return;
                 }
@@ -151,7 +175,8 @@ namespace EchoBot
                 {
                     if ((DateTime.Now - LastTimeWeListened.Value).TotalMilliseconds > 500)
                     {
-                        DumpVoiceBuffer();
+                        VoiceBufferQueue.Enqueue(new List<byte[]>(VoiceBuffer.AsEnumerable()));
+                        VoiceBuffer.Clear();
 
                         TimeWeStartedListeningToTarget = null;
                         LastTimeWeListened = null;
@@ -162,7 +187,8 @@ namespace EchoBot
                 {
                     if ((DateTime.Now - TimeWeStartedListeningToTarget.Value).TotalMilliseconds > 29500)
                     {
-                        DumpVoiceBuffer();
+                        VoiceBufferQueue.Enqueue(new List<byte[]> (VoiceBuffer.AsEnumerable()));
+                        VoiceBuffer.Clear();
 
                         TimeWeStartedListeningToTarget = null;
                         LastTimeWeListened = null;
@@ -170,63 +196,68 @@ namespace EchoBot
                 }
             }
 
-            private void DumpVoiceBuffer()
+            public bool ProcessVoiceBufferQueue()
             {
-                Console.WriteLine($"Dumping voice buffer for {Persona.UserName} ({Persona.Handle})");
-                const int kFrameSize = 960;
-                const int kFrequency = 48000;
-
-                byte[] wavBytes;
-                using (MemoryStream ms = new MemoryStream())
+                while(VoiceBufferQueue.TryDequeue(out List<byte[]> voiceBuffer))
                 {
-                    var decoder = OpusDecoder.Create(kFrequency, 1);
-                    var decompressedBuffer = new short[kFrameSize * 2];
+                    Console.WriteLine($"Dumping voice buffer for {Persona.UserName} ({Persona.Handle})");
+                    const int kFrameSize = 960;
+                    const int kFrequency = 48000;
 
-                    foreach (var item in VoiceBuffer)
+                    byte[] wavBytes;
+                    using (MemoryStream ms = new MemoryStream())
                     {
-                        var numSamples = OpusPacketInfo.GetNumSamples(decoder, item, 0, item.Length);
-                        var result = decoder.Decode(item, 0, item.Length, decompressedBuffer, 0, numSamples);
+                        var decoder = OpusDecoder.Create(kFrequency, 1);
+                        var decompressedBuffer = new short[kFrameSize * 2];
 
-                        var decompressedBufferBytes = new byte[result * 2];
-                        Buffer.BlockCopy(decompressedBuffer, 0, decompressedBufferBytes, 0, result * 2);
-
-                        ms.Write(decompressedBufferBytes);
-                    }
-
-                    ms.Seek(0, SeekOrigin.Begin);
-                    using (var rs = new RawSourceWaveStream(ms, new WaveFormat(48000, 16, 1)))
-                    {
-                        using (var wavStream = new MemoryStream())
+                        foreach (var item in voiceBuffer)
                         {
-                            WaveFileWriter.WriteWavFileToStream(wavStream, rs);
-                            wavBytes = wavStream.ToArray();
-                        }
-                    }
-                }
+                            var numSamples = OpusPacketInfo.GetNumSamples(decoder, item, 0, item.Length);
+                            var result = decoder.Decode(item, 0, item.Length, decompressedBuffer, 0, numSamples);
 
-                using (var client = new HttpClient())
-                {
-                    var result = client.PostAsync("http://127.0.0.1:5000/speech_to_text", new ByteArrayContent(wavBytes)).Result;
-                    var resultString = result.Content.ReadAsStringAsync().Result;
+                            var decompressedBufferBytes = new byte[result * 2];
+                            Buffer.BlockCopy(decompressedBuffer, 0, decompressedBufferBytes, 0, result * 2);
 
-                    var jsonResult = System.Text.Json.JsonSerializer.Deserialize<SpeechToTextResult>(resultString);
-                    if (jsonResult?.Success == true)
-                    {
-                        if (jsonResult.Text.Trim().Length == 0)
-                        {
-                            return;
+                            ms.Write(decompressedBufferBytes);
                         }
 
-                        Driver.SendChatMessage($"{Persona.UserName} ({Persona.Handle}): {jsonResult.Text}");
+                        ms.Seek(0, SeekOrigin.Begin);
+                        using (var rs = new RawSourceWaveStream(ms, new WaveFormat(48000, 16, 1)))
+                        {
+                            using (var wavStream = new MemoryStream())
+                            {
+                                WaveFileWriter.WriteWavFileToStream(wavStream, rs);
+                                wavBytes = wavStream.ToArray();
+                            }
+                        }
                     }
-                    else
+
+                    using (var client = new HttpClient())
                     {
-                        Driver.SendChatMessage("Error :(");
+                        var result = client.PostAsync("http://127.0.0.1:5000/speech_to_text", new ByteArrayContent(wavBytes)).Result;
+                        var resultString = result.Content.ReadAsStringAsync().Result;
+
+                        var jsonResult = System.Text.Json.JsonSerializer.Deserialize<SpeechToTextResult>(resultString);
+                        if (jsonResult?.Success == true)
+                        {
+                            if (jsonResult.Text.Trim().Length == 0)
+                            {
+                                return true;
+                            }
+
+                            Driver.SendChatMessage($"{Persona.UserName} ({Persona.Handle}): {jsonResult.Text}");
+                        }
+                        else
+                        {
+                            Driver.SendChatMessage("Error :(");
+                        }
                     }
+
                 }
 
-                VoiceBuffer.Clear();
+                return true;
             }
+
         }
 
 
