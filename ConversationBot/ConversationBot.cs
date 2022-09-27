@@ -38,7 +38,7 @@ namespace EchoBot
                                                                                                                // public SanUUID ItemClousterResourceId { get; set; } = new SanUUID("04c2d5a7ea3d6fb47af66669cfdc9f9a"); // heart reaction thing
                                                                                                                //public SanUUID ItemClousterResourceId { get; set; } = new SanUUID("b8534d067b0613a509b0155e0dacb0b2"); // fox doll
 
-        public Dictionary<uint, VoiceConversation> ConversationsByAgentControllerId { get; set; } = new Dictionary<uint, VoiceConversation>();
+        public ConcurrentDictionary<uint, VoiceConversation> ConversationsByAgentControllerId { get; set; } = new ConcurrentDictionary<uint, VoiceConversation>();
 
         public ConversationBot()
         {
@@ -196,10 +196,20 @@ namespace EchoBot
                 }
             }
 
+            public HashSet<string> Blacklist { get; set; } = new HashSet<string>()
+            {
+                "entity0x",
+            };
+
             public bool ProcessVoiceBufferQueue()
             {
                 while(VoiceBufferQueue.TryDequeue(out List<byte[]> voiceBuffer))
                 {
+                    if(Blacklist.Contains(Persona.Handle.ToLower()))
+                    {
+                        return true;
+                    }
+
                     Console.WriteLine($"Dumping voice buffer for {Persona.UserName} ({Persona.Handle})");
                     const int kFrameSize = 960;
                     const int kFrequency = 48000;
@@ -249,7 +259,7 @@ namespace EchoBot
                         }
                         else
                         {
-                            Driver.SendChatMessage("Error :(");
+                            Console.WriteLine("Speech to text failed");
                         }
                     }
 
@@ -300,6 +310,16 @@ namespace EchoBot
         {
             Output("Sending to voice server: LocalAudioStreamState(1)...");
             Driver.VoiceClient.SendPacket(new SanProtocol.ClientVoice.LocalAudioStreamState(Driver.VoiceClient.InstanceId, 0, 1, 1));
+
+            HaveIBeenCreatedYet = true;
+            if(Driver.MyPersonaData != null && Driver.MyPersonaData.ClusterId != null)
+            {
+                if(InitialClusterPositions.ContainsKey(Driver.MyPersonaData.ClusterId.Value))
+                {
+                    Output("Found my initial cluster position. Updating my voice position");
+                    Driver.SetVoicePosition(InitialClusterPositions[Driver.MyPersonaData.ClusterId.Value], true);
+                }
+            }
         }
 
         private void ClientRegionMessages_OnClientSetRegionBroadcasted(object? sender, SanProtocol.ClientRegion.ClientSetRegionBroadcasted e)
@@ -308,12 +328,21 @@ namespace EchoBot
             Driver.VoiceClient.SendPacket(new LocalSetRegionBroadcasted(e.Broadcasted));
         }
 
+        public bool HaveIBeenCreatedYet { get; set; } = false;
+        public Dictionary<uint, List<float>> InitialClusterPositions { get; set; } = new Dictionary<uint, List<float>>();
+
         private void WorldStateMessages_OnCreateClusterViaDefinition(object? sender, SanProtocol.WorldState.CreateClusterViaDefinition e)
         {
             if (e.ResourceId == this.ItemClousterResourceId)
             {
                 Driver.WarpToPosition(e.SpawnPosition, e.SpawnRotation);
                 Driver.SetVoicePosition(e.SpawnPosition, true);
+            }
+
+            if(!HaveIBeenCreatedYet)
+            {
+                InitialClusterPositions[e.ClusterId] = e.SpawnPosition;
+                return;
             }
         }
 
@@ -410,8 +439,8 @@ namespace EchoBot
             Driver.WebApi.SetAvatarIdAsync(Driver.MyPersonaDetails.Id, "43668ab727c00fd7d33a5af1085493dd").Wait();
 
             // Driver.JoinRegion("djm3n4c3-9174", "dj-s-outside-fun2").Wait();
-          //    Driver.JoinRegion("sansar-studios", "social-hub").Wait();
-           Driver.JoinRegion("nopnopnop", "owo").Wait();
+              Driver.JoinRegion("sansar-studios", "social-hub").Wait();
+        //   Driver.JoinRegion("nopnopnop", "owo").Wait();
             //Driver.JoinRegion("mijekamunro", "gone-grid-city-prime-millenium").Wait();
             //  Driver.JoinRegion("nopnopnop", "aaaaaaaaaaaa").Wait();
         }
