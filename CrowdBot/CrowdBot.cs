@@ -35,12 +35,18 @@ namespace CrowdBot
             "nop",
             "nopnop",
             "nopnopnop",
-            "vitaminc-0154"
+            "vitaminc-0154",
+            "nick-sansar"
         };
 
         public SanProtocol.AnimationComponent.CharacterTransformPersistent? SavedTransform { get; set; }
         public SanProtocol.AgentController.AgentPlayAnimation? SavedAnimation { get; set; }
         public SanProtocol.AgentController.CharacterControllerInputReliable? SavedControllerInput { get; set; }
+
+        public string Voice { get; set; }
+        public Entrypoint.GoogleTTSVoice GoogleTTSVoice { get; set; }
+        public List<string> Catchphrases { get; set; }
+        public bool UseCatchprase { get; set; } = false;
 
         public CrowdBot(string id, SanProtocol.AnimationComponent.CharacterTransformPersistent? transformToRestore, SanProtocol.AgentController.CharacterControllerInputReliable? controllerInputToRestore, SanProtocol.AgentController.AgentPlayAnimation? animationToRestore)
         {
@@ -50,13 +56,11 @@ namespace CrowdBot
             SavedControllerInput = controllerInputToRestore;
 
             Driver = new Driver();
+
             Driver.OnOutput += Driver_OnOutput;
 
-            Driver.KafkaClient.ClientKafkaMessages.OnPrivateChat += ClientKafkaMessages_OnPrivateChat;
-            Driver.KafkaClient.ClientKafkaMessages.OnLoginReply += ClientKafkaMessages_OnLoginReply;
             Driver.KafkaClient.ClientKafkaMessages.OnRegionChat += ClientKafkaMessages_OnRegionChat;
 
-            Driver.RegionClient.ClientRegionMessages.OnUserLoginReply += ClientRegionMessages_OnUserLoginReply;
             Driver.RegionClient.ClientRegionMessages.OnSetAgentController += ClientRegionMessages_OnSetAgentController;
 
             Driver.RegionClient.AnimationComponentMessages.OnCharacterTransform += AnimationComponentMessages_OnCharacterTransform;
@@ -74,10 +78,22 @@ namespace CrowdBot
 
             Driver.RegionClient.WorldStateMessages.OnDestroyCluster += WorldStateMessages_OnDestroyCluster;
 
+            Driver.RegionToJoin = new RegionDetails("nop", "flat2");
+           // Driver.RegionToJoin = new RegionDetails("nop", "flat");
+          //  Driver.RegionToJoin = new RegionDetails("sansar-studios", "club-sansar");
+            // Driver.RegionToJoin = new RegionDetails("sansar-studios", "social-hub");
+
+            Driver.AutomaticallySendClientReady = true;
+            Driver.UseVoice = false;
         }
 
         public void Start(ConfigFile config)
         {
+            Driver.TextToSpeechVoice = Voice;
+            Driver.GoogleTTSName = GoogleTTSVoice.Name;
+            Driver.GoogleTTSPitch = GoogleTTSVoice.Pitch;
+            Driver.GoogleTTSRate = GoogleTTSVoice.Rate;
+
             IsRunning = true;
             Driver.StartAsync(config).Wait();
         }
@@ -288,7 +304,15 @@ namespace CrowdBot
                 return;
             }
 
-            if(Math.Abs(e.MoveForward) > 0.0001f || Math.Abs(e.MoveRight) > 0.0001f)
+            var persona = TargetPersonas
+                .Where(n => n.AgentControllerId == e.AgentControllerId)
+                .FirstOrDefault();
+            if (persona == null)
+            {
+                return;
+            }
+
+            if (Math.Abs(e.MoveForward) > 0.0001f || Math.Abs(e.MoveRight) > 0.0001f)
             {
                 SavedAnimation = null;
             }
@@ -340,15 +364,58 @@ namespace CrowdBot
                 }
 
                 Driver.SetPosition(e.Position, e.OrientationQuat, e.GroundComponentId, true);
+                Driver.SetVoicePosition(e.Position, false);
             }
         }
 
+        Dictionary<ulong, bool> spokenToAvatar = new Dictionary<ulong, bool>();
+
+        Random rand = new Random();
         private void AnimationComponentMessages_OnCharacterTransform(object? sender, SanProtocol.AnimationComponent.CharacterTransform e)
         {
-            var persona = TargetPersonas
-                .Where(n => n.AgentComponentId == e.ComponentId)
+            var persona = Driver.PersonasBySessionId
+                .Where(n => n.Value.AgentComponentId == e.ComponentId)
+                .Select(n => n.Value)
                 .FirstOrDefault();
             if (persona == null)
+            {
+                return;
+            }
+
+            if(!spokenToAvatar.ContainsKey(e.ComponentId))
+            {
+                spokenToAvatar.Add(e.ComponentId, false);
+            }
+
+            if (Driver.MyPersonaData == null || persona.SessionId == Driver.MyPersonaData.SessionId)
+            {
+                return;
+            }
+
+            if(UseCatchprase)
+            {
+                var myPos = Driver.MyPersonaData.Position;
+                var distToTarget = Distance(myPos[0], persona.Position[0], myPos[1], persona.Position[1], myPos[2], persona.Position[2]);
+                // Console.WriteLine($"Distance to {persona.UserName} = {distToTarget}");
+                if (distToTarget <= 2.0)
+                {
+                    if (!spokenToAvatar[e.ComponentId])
+                    {
+                        spokenToAvatar[e.ComponentId] = true;
+                        var catchphrase = Catchphrases[rand.Next(0, Catchphrases.Count)].Replace("#NAME#", persona.UserName);
+                        Driver.SpeakAzure(catchphrase, true);
+                    }
+                }
+                else if (distToTarget >= 10)
+                {
+                    spokenToAvatar[e.ComponentId] = false;
+                }
+            }
+
+            var targetPersona = TargetPersonas
+                .Where(n => n.AgentComponentId == e.ComponentId)
+                .FirstOrDefault();
+            if (targetPersona == null)
             {
                 return;
             }
@@ -359,6 +426,11 @@ namespace CrowdBot
             }
         }
 
+        private float Distance(float x1, float x2, float y1, float y2, float z1, float z2)
+        {
+            return (float)Math.Sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2) + (z1 - z2)*(z1 - z2));
+        }
+
         private void ClientRegionMessages_OnSetAgentController(object? sender, SanProtocol.ClientRegion.SetAgentController e)
         {
             if (Driver.MyPersonaData == null || Driver.MyPersonaData.AgentControllerId == null || Driver.MyPersonaData.AgentComponentId == null)
@@ -367,7 +439,6 @@ namespace CrowdBot
                 return;
             }
 
-            Say($"Hello, I am {Id}");
             if(SavedTransform != null)
             {
                 SavedTransform.ComponentId = Driver.MyPersonaData.AgentComponentId.Value;
@@ -411,7 +482,7 @@ namespace CrowdBot
                 return;
             }
 
-            if(!OwnerHandles.Contains(sourcePersona.Handle))
+            if(!OwnerHandles.Contains(sourcePersona.Handle.ToLower()))
             {
                 return;
             }
@@ -587,40 +658,6 @@ namespace CrowdBot
             TargetPersonas.Clear();
         }
 
-        private void ClientRegionMessages_OnUserLoginReply(object? sender, SanProtocol.ClientRegion.UserLoginReply e)
-        {
-            if (!e.Success)
-            {
-                throw new Exception("Failed to enter region");
-            }
-
-            Output("Logged into region: " + e.ToString());
-
-            var regionAddress = Driver.CurrentInstanceId!.Format();
-            Driver.KafkaClient.SendPacket(new SanProtocol.ClientKafka.EnterRegion(
-                regionAddress
-            ));
-
-            Driver.RegionClient.SendPacket(new SanProtocol.ClientRegion.ClientDynamicReady(
-                //new List<float>() { (float)(radius*Math.Sin(angleRads)), (float)(radius * Math.Cos(angleRads)), 5.0f },
-                new List<float>() { 0, 0, 0 },
-                new List<float>() { -1, 0, 0, 0 }, // upside down spin ish
-                new SanUUID(Driver.MyPersonaDetails!.Id),
-                "",
-                0,
-                1
-            ));
-
-            Driver.RegionClient.SendPacket(new SanProtocol.ClientRegion.ClientStaticReady(
-                1
-            ));
-        }
-
-        private void ClientKafkaMessages_OnPrivateChat(object? sender, PrivateChat e)
-        {
-            Output($"(PRIVMSG) {e.FromPersonaId}: {e.Message}");
-        }
-        
         private void Driver_OnOutput(object? sender, string message)
         {
             Output(message, sender?.GetType().Name ?? "Bot");
@@ -643,38 +680,9 @@ namespace CrowdBot
 
         public void Say(string str)
         {
+            Output(str);
             this.Driver.SendChatMessage(str);
         }
 
-        private void ClientKafkaMessages_OnLoginReply(object? sender, SanProtocol.ClientKafka.LoginReply e)
-        {
-            if (!e.Success)
-            {
-                throw new Exception($"KafkaClient failed to login: {e.Message}");
-            }
-
-            Output("Kafka client logged in successfully");
-
-            //if(CloneAvatarTarget != "" && CloneAvatarTarget.Length == 32)
-            //{
-            //    Driver.WebApi.SetAvatarIdAsync(Driver.MyPersonaDetails.Id, CloneAvatarTarget).Wait();
-            //}
-            // mark
-            //Driver.WebApi.SetAvatarIdAsync(Driver.MyPersonaDetails.Id, "0fd910bd763fa45580de460cb6f76c57").Wait();
-
-            // dnaelite
-            //Driver.WebApi.SetAvatarIdAsync(Driver.MyPersonaDetails.Id, "404e7e026b53ce8a8721d2fc3657f37f").Wait();
-
-            // default bot
-            //   Driver.WebApi.SetAvatarIdAsync(Driver.MyPersonaDetails.Id, "43668ab727c00fd7d33a5af1085493dd").Wait();
-
-            // Driver.JoinRegion("djm3n4c3-9174", "dj-s-outside-fun2").Wait();
-            ///  Driver.JoinRegion("sansar-studios", "social-hub").Wait();
-            // Driver.JoinRegion("nopnop", "unit").Wait();
-            //Driver.JoinRegion("mijekamunro", "gone-grid-city-prime-millenium").Wait();
-
-           // Driver.JoinRegion("mijekamunro", "bingo-oracle").Wait();
-            Driver.JoinRegion("nopnopnop", "owo").Wait();
-        }
     }
 }

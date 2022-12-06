@@ -10,7 +10,7 @@ namespace SanServerTester
     {
         static void Main(string[] args)
         {
-            var bot = new TesterBot();
+            var bot = new TesterBot.TesterBot();
         }
     }
 }

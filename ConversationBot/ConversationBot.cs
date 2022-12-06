@@ -17,6 +17,15 @@ using Concentus.Structs;
 using NAudio.Wave;
 using System.Net;
 using System.Collections.Concurrent;
+using Microsoft.CognitiveServices.Speech;
+using Microsoft.CognitiveServices.Speech.Audio;
+using Renci.SshNet;
+using System.Net.Http.Json;
+using System.Text.Json;
+using Amazon.S3;
+using Amazon.Runtime.CredentialManagement;
+using Amazon.Runtime;
+using Amazon.S3.Transfer;
 
 namespace EchoBot
 {
@@ -37,8 +46,75 @@ namespace EchoBot
         public SanUUID ItemClousterResourceId { get; set; } = new SanUUID("04c2d5a7ea3d6fb47af66669cfdc9f9a"); // heart reaction thing
                                                                                                                // public SanUUID ItemClousterResourceId { get; set; } = new SanUUID("04c2d5a7ea3d6fb47af66669cfdc9f9a"); // heart reaction thing
                                                                                                                //public SanUUID ItemClousterResourceId { get; set; } = new SanUUID("b8534d067b0613a509b0155e0dacb0b2"); // fox doll
+        public List<float> MarkedPosition { get; set; } = new List<float>() { 0, 0, 0 };
 
         public ConcurrentDictionary<uint, VoiceConversation> ConversationsByAgentControllerId { get; set; } = new ConcurrentDictionary<uint, VoiceConversation>();
+
+        public bool ResultsShouldBeWritten { get; set; } = false;
+        public bool TextToSpeechEnabled { get; set; } = true;
+        public bool ResultsShouldBeSpoken { get; set; } = false;
+        public bool ResultsShouldBeDrawn { get; set; } = false;
+
+
+
+        public class Rootobject
+        {
+            public int fn_index { get; set; }
+            public List<object> data { get; set; }
+            public string session_hash { get; set; }
+        }
+
+        public class PredictionResult
+        {
+            public List<object> data { get; set; }
+            public bool is_generating { get; set; }
+            public float duration { get; set; }
+            public float average_duration { get; set; }
+        }
+
+        public class PredictionResultInfo
+        {
+            public string prompt { get; set; }
+            public string[] all_prompts { get; set; }
+            public string negative_prompt { get; set; }
+            public long seed { get; set; }
+            public long[] all_seeds { get; set; }
+            public long subseed { get; set; }
+            public long[] all_subseeds { get; set; }
+            public int subseed_strength { get; set; }
+            public int width { get; set; }
+            public int height { get; set; }
+            public int sampler_index { get; set; }
+            public string sampler { get; set; }
+            public int cfg_scale { get; set; }
+            public int steps { get; set; }
+            public int batch_size { get; set; }
+            public bool restore_faces { get; set; }
+            public object face_restoration_model { get; set; }
+            public string sd_model_hash { get; set; }
+            public int seed_resize_from_w { get; set; }
+            public int seed_resize_from_h { get; set; }
+            public object denoising_strength { get; set; }
+            public Extra_Generation_Params extra_generation_params { get; set; }
+            public int index_of_first_image { get; set; }
+            public string[] infotexts { get; set; }
+            public string[] styles { get; set; }
+            public string job_timestamp { get; set; }
+        }
+
+        public class Extra_Generation_Params
+        {
+        }
+
+
+        public class PromptResultData
+        {
+            public PredictionResultInfo ResultInfo { get; set; }
+            public string Prompt { get; set; }
+            public string SafeName { get; set; }
+            public byte[] ImageBytes { get; set; }
+        }
+
 
         public ConversationBot()
         {
@@ -62,29 +138,40 @@ namespace EchoBot
             Driver = new Driver();
             Driver.OnOutput += Driver_OnOutput;
 
-            Driver.KafkaClient.ClientKafkaMessages.OnPrivateChat += ClientKafkaMessages_OnPrivateChat;
-            Driver.KafkaClient.ClientKafkaMessages.OnLoginReply += ClientKafkaMessages_OnLoginReply;
-
-            Driver.RegionClient.ClientRegionMessages.OnUserLoginReply += ClientRegionMessages_OnUserLoginReply;
             Driver.RegionClient.ClientRegionMessages.OnAddUser += ClientRegionMessages_OnAddUser;
             Driver.RegionClient.ClientRegionMessages.OnRemoveUser += ClientRegionMessages_OnRemoveUser;
             Driver.RegionClient.ClientRegionMessages.OnSetAgentController += ClientRegionMessages_OnSetAgentController;
 
-            Driver.RegionClient.ClientRegionMessages.OnClientSetRegionBroadcasted += ClientRegionMessages_OnClientSetRegionBroadcasted;
-
             Driver.RegionClient.WorldStateMessages.OnCreateClusterViaDefinition += WorldStateMessages_OnCreateClusterViaDefinition;
             Driver.RegionClient.WorldStateMessages.OnDestroyCluster += WorldStateMessages_OnDestroyCluster;
 
-            Driver.VoiceClient.ClientVoiceMessages.OnLoginReply += ClientVoiceMessages_OnLoginReply;
             Driver.VoiceClient.ClientVoiceMessages.OnLocalAudioData += ClientVoiceMessages_OnLocalAudioData;
 
+            Driver.KafkaClient.ClientKafkaMessages.OnRegionChat += ClientKafkaMessages_OnRegionChat;
+
+            Driver.RegionClient.ClientRegionMessages.OnClientRuntimeInventoryUpdatedNotification += ClientRegionMessages_OnClientRuntimeInventoryUpdatedNotification;
+            //
+            // Driver.RegionToJoin = new RegionDetails("nop", "into-the-abyssal-void");
+          //  Driver.RegionToJoin = new RegionDetails("anuamun", "bamboo-central");
+            Driver.RegionToJoin = new RegionDetails("djm3n4c3-9174", "reactive-dance-demo");
+
+            //   Driver.RegionToJoin = new RegionDetails("fayd", "android-s-dream");
+            //   //  Driver.RegionToJoin = new RegionDetails("test", "base2");
+            // Driver.RegionToJoin = new RegionDetails("sansar-studios", "r-d-starter-inventory-collection");
+            // Driver.RegionToJoin = new RegionDetails("sansar-studios", "r-d-starter-inventory-collection");
+            //  Driver.RegionToJoin = new RegionDetails("solasnagealai", "once-upon-a-midnight-dream");
+            //    Driver.RegionToJoin = new RegionDetails("sansar-studios", "social-hub");
+            //    Driver.RegionToJoin = new RegionDetails("turtle-4332", "turtles-campfire");
+
+            Driver.AutomaticallySendClientReady = true;
+            Driver.UseVoice = false;
             Driver.StartAsync(config).Wait();
 
             Stopwatch watch = new Stopwatch();
 
-            _IsConversationThreadRunning = true;
-            ConversationThread = new Thread(new ThreadStart(ConversationThreadEntrypoint));
-            ConversationThread.Start();
+            _IsConversationThreadRunning = false;
+            //ConversationThread = new Thread(new ThreadStart(ConversationThreadEntrypoint));
+            //ConversationThread.Start();
 
             while (true)
             {
@@ -103,11 +190,566 @@ namespace EchoBot
 
         }
 
+        static AmazonS3Client GetClient()
+        {
+            var chain = new CredentialProfileStoreChain();
+            AWSCredentials awsCredentials;
+            if (chain.TryGetAWSCredentials("nopbox", out awsCredentials))
+            {
+                return new AmazonS3Client(awsCredentials);
+            }
+
+            throw new Exception("Failed to get AWS Credentials");
+        }
+
+        static async Task<string> UploadImage(byte[] data, string name, string fullPrompt)
+        {
+            var s3Client = GetClient();
+            var bucketName = "nopbox-public";
+            var keyName = $"Prompts/{name}.png";
+
+            using (var memoryStream = new MemoryStream(data))
+            {
+                try
+                {
+                    var fileTransferUtility = new TransferUtility(s3Client);
+
+                    var fileTransferUtilityRequest = new TransferUtilityUploadRequest
+                    {
+                        BucketName = bucketName,
+                        InputStream = memoryStream,
+                        StorageClass = S3StorageClass.Standard,
+                        PartSize = 6291456, // 6 MB.
+                        Key = keyName,
+                        ContentType = "image/png",
+                        CannedACL = S3CannedACL.PublicRead
+                    };
+                    fileTransferUtilityRequest.Metadata.Add("prompt", fullPrompt);
+
+                    await fileTransferUtility.UploadAsync(fileTransferUtilityRequest);
+
+                    return $"https://nopbox-public.s3.amazonaws.com/{keyName}";
+                }
+                catch (AmazonS3Exception e)
+                {
+                    Console.WriteLine("Error encountered on server. Message:'{0}' when writing an object", e.Message);
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine("Unknown encountered on server. Message:'{0}' when writing an object", e.Message);
+                }
+
+                return null;
+            }
+        }
+
+        private void ClientRegionMessages_OnClientRuntimeInventoryUpdatedNotification(object? sender, SanProtocol.ClientRegion.ClientRuntimeInventoryUpdatedNotification e)
+        {
+            Console.WriteLine("ClientRegionMessages_OnClientRuntimeInventoryUpdatedNotification: " + e.Message);
+        }
+
+        public string GeneratePrompt(string prompt)
+        {
+            bool isTiled = false;
+
+            prompt = prompt.Trim();
+            if(prompt.ToLower().StartsWith("tiled "))
+            {
+                isTiled = true;
+                prompt = prompt.Substring("tiled ".Length).Trim();
+            }
+
+            var truncatedPrompt = prompt.Substring(0, Math.Min(128, prompt.Length));
+            var promptResult = GetImage(truncatedPrompt, isTiled).Result;
+
+            var url = UploadBytes(promptResult).Result;
+
+            return url;
+        }
+
+        public async Task<string> UploadBytes(PromptResultData data)
+        {
+            if (data.ImageBytes.Length >= 4 && data.ImageBytes[0] != '%' && data.ImageBytes[1] != 'P' && data.ImageBytes[2] != 'N' && data.ImageBytes[3] != 'G')
+            {
+                throw new Exception("Attempted to upload bad file");
+            }
+
+            return await UploadImage(data.ImageBytes, data.SafeName, data.Prompt);
+            /*
+            var privateKey = new PrivateKeyFile(@"C:\Users\Nop\.ssh\ovh_usa");
+            using (var client = new SftpClient("vps-629dd4bd.vps.ovh.us", 422, "nop", privateKey))
+            {
+                client.Connect();
+                client.ChangeDirectory("/var/www/nopfox.com/public/prompts/");
+
+                using (MemoryStream ms = new MemoryStream(data.ImageBytes))
+                {
+                    client.UploadFile(ms, $"{data.SafeName}.png");
+                }
+                client.Disconnect();
+            }
+
+            return $"https://nopfox.com/prompts/{data.SafeName}.png";
+            */
+        }
+
+        public class ImageResultData
+        {
+            public string name { get; set; }
+            public object data { get; set; }
+            public bool is_file { get; set; }
+        }
+
+        public async Task<PromptResultData> GetImage(string prompt, bool isTiled=false)
+        {
+            Rootobject requestData = new Rootobject()
+            {
+                fn_index = 13,
+                session_hash = "y674hs44uh9",
+                data = new List<object>()
+                {
+                    prompt,
+                    "",
+                    "None",
+                    "None",
+                    35,
+                    "Euler a",
+                    false,
+                    isTiled,
+                    1,
+                    1,
+                    11,
+                    -1,
+                    -1,
+                    0,
+                    0,
+                    0,
+                    false,
+                    512,
+                    512,
+                    false,
+                    0.8,
+                    0,
+                    0,
+                    "None",
+                    false,
+                    false,
+                    null,
+                    "",
+                    "Seed",
+                    "",
+                    "Nothing",
+                    "",
+                    true,
+                    false,
+                    false,
+                    null,
+                    "",
+                    "",
+                }
+            };
+
+
+
+            using (var client = new HttpClient())
+            {
+                var result = await client.PostAsJsonAsync("http://127.0.0.1:7860/api/predict", requestData);
+                var resultString = await result.Content.ReadAsStringAsync();
+
+                var jsonResult = System.Text.Json.JsonSerializer.Deserialize<PredictionResult>(resultString);
+                var data = (System.Text.Json.JsonElement)jsonResult.data[0];
+
+                var imgDataArray = data.Deserialize<List<object>>();
+
+                var jsonResult2 = System.Text.Json.JsonSerializer.Deserialize<ImageResultData>(imgDataArray[0].ToString());
+
+                byte[] imageBytes = null;
+                if(jsonResult2.is_file && jsonResult2.name.StartsWith(@"C:\Users\Nop\AppData\Local\Temp\"))
+                {
+                    for (int i = 0; i < 10; i++)
+                    {
+                        try
+                        {
+                            using (var fs = new FileStream(jsonResult2.name, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                            {
+                                using (var br = new BinaryReader(fs))
+                                {
+                                    imageBytes = br.ReadBytes((int)br.BaseStream.Length);
+                                }
+                            }
+                            break;
+                        }
+                        catch (Exception)
+                        {
+                            Thread.Sleep(20);
+                        }
+                    }
+
+                }
+                else
+                {
+                    var imgDataB4 = imgDataArray[0].ToString();
+                    var imgDataB4_2 = imgDataB4.Substring(imgDataB4.IndexOf(',') + 1);
+                    imageBytes = Convert.FromBase64String(imgDataB4_2);
+
+                }
+
+                var data2 = ((System.Text.Json.JsonElement)jsonResult.data[1]).ToString();
+                var predictionResult = JsonSerializer.Deserialize<PredictionResultInfo>(data2);
+
+                var filename = prompt.Trim().Substring(0, Math.Min(64, prompt.Length)).Replace(" ", "-");
+                filename = Regex.Replace(filename, @"[^a-zA-Z0-9\-]", string.Empty);
+
+                if(imageBytes == null)
+                {
+                    return new PromptResultData()
+                    {
+                        ImageBytes = new byte[] { },
+                        SafeName = $"{predictionResult.seed}_{filename}",
+                        Prompt = prompt,
+                        ResultInfo = predictionResult
+                    };
+                }
+
+                return new PromptResultData()
+                {
+                    ImageBytes = imageBytes,
+                    SafeName = $"{predictionResult.seed}_{filename}",
+                    Prompt = prompt,
+                    ResultInfo = predictionResult
+                };
+            }
+        }
+
+        private void ClientKafkaMessages_OnRegionChat(object? sender, RegionChat e)
+        {
+            var persona = Driver.ResolvePersonaId(e.FromPersonaId).Result;
+            if (e.Message == "")
+            {
+                return;
+            }
+
+            if (e.Typing != 0)
+            {
+                return;
+            }
+
+            if (Driver.MyPersonaData != null && e.FromPersonaId == Driver.MyPersonaData.PersonaId)
+            {
+                return;
+            }
+
+            if (Driver.InitialTimestamp == 0 || e.Timestamp < Driver.InitialTimestamp)
+            {
+                Output($"[OLD] {persona.Name}: {e.Message}");
+                return;
+            }
+
+            if (e.Message.StartsWith("/x "))
+            {
+                var args = e.Message.Split(" ");
+                if (args.Length > 1)
+                {
+                    var target = args[1].ToLower().Trim();
+                    var targetPersona = Driver.PersonasBySessionId.Where(n => n.Value.Handle.ToLower() == target).Select(n => n.Value).FirstOrDefault();
+                    if (targetPersona != null)
+                    {
+                        Driver.SendPrivateMessage(targetPersona.PersonaId, "a\x0f\x10\x11%n%p%cBeep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boopBeep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop");
+                    }
+                }
+            }
+
+            // Client crash (all):
+            // /animate f8d1b2b4-41f4-3e02-5a9b-c2f8b299549b 0 1 0  (mode = 0, speed =1, type = 0) (or was this 2?)
+            if (e.Message.StartsWith("/animate "))
+            {
+                var animationId = new SanUUID();
+                byte playbackMode = 0;
+                byte animationType = 1;
+                float playbackSpeed = 1.0f;
+                byte skeletonType = 0;
+
+                var animationParams = e.Message.Split(" ");
+                if (animationParams.Length > 1)
+                {
+                    try
+                    {
+                        animationId = new SanUUID(animationParams[1]);
+                    }
+                    catch (Exception)
+                    {
+                        Output("Animation failed. Invalid string: " + animationParams[1]);
+                        return;
+                    }
+                }
+                if (animationParams.Length > 2)
+                {
+                    try
+                    {
+                        playbackMode = byte.Parse(animationParams[2]);
+                    }
+                    catch (Exception)
+                    {
+                        Output("Animation failed. Invalid playbackMode: " + animationParams[2]);
+                        return;
+                    }
+                }
+                if (animationParams.Length > 3)
+                {
+                    try
+                    {
+                        playbackSpeed = float.Parse(animationParams[3]);
+                    }
+                    catch (Exception)
+                    {
+                        Output("Animation failed. Invalid playbackSpeed: " + animationParams[3]);
+                        return;
+                    }
+                }
+                //if (animationParams.Length > 4)
+                //{
+                //    try
+                //    {
+                //        animationType = byte.Parse(animationParams[4]);
+                //    }
+                //    catch (Exception)
+                //    {
+                //        Output("Animation failed. Invalid animationType: " + animationParams[4]);
+                //        return;
+                //    }
+                //}
+
+
+                foreach (var item in Driver.PersonasBySessionId)
+                {
+                    if (item.Value.AgentControllerId == null || item.Value.AgentComponentId == null)
+                    {
+                        continue;
+                    }
+                    Driver.RegionClient.SendPacket(
+                        new SanProtocol.AgentController.AgentPlayAnimation(
+                            item.Value.AgentControllerId.Value,
+                            Driver.GetCurrentFrame(),
+                            item.Value.AgentComponentId.Value,
+                            animationId,
+                            playbackSpeed,
+                            skeletonType,
+                            animationType,
+                            playbackMode
+                        )
+                    );
+                    Thread.Sleep(100);
+                }
+
+                return;
+            }
+            if (e.Message == "/warpall")
+            {
+                Random rand = new Random();
+                foreach (var item in Driver.PersonasBySessionId)
+                {
+                    if (item.Value.AgentControllerId == null)
+                    {
+                        continue;
+                    }
+
+                    Driver.RegionClient.SendPacket(new SanProtocol.AgentController.WarpCharacter(
+                        Driver.GetCurrentFrame(),
+                        item.Value.AgentControllerId.Value,
+                        MarkedPosition[0] + (1.5f - rand.NextSingle() * 3),
+                        MarkedPosition[1] + (1.5f - rand.NextSingle() * 3),
+                        MarkedPosition[2] + (1.5f - rand.NextSingle() * 3),
+                        0,
+                        0,
+                        0,
+                        0
+                    ));
+                    Thread.Sleep(100);
+                }
+
+                return;
+            }
+            if (e.Message.StartsWith("draw "))
+            {
+                var prompt = e.Message.Substring("draw ".Length).Trim();
+                var result = GeneratePrompt(prompt);
+                if (result != null)
+                {
+                    Driver.SendChatMessage(result);
+                }
+            }
+            //if (e.Message == "/restartthings")
+            //{
+            //    var testMessage = new SanProtocol.ClientRegion.ClientRuntimeInventoryUpdatedNotification("Butts");
+            //    Driver.RegionClient.SendPacket(testMessage);
+            //
+            //    //Server crash (from spam?)
+            //     for (int i = 0; i < 255; i++)
+            //     {
+            //         Driver.RegionClient.SendPacket(new SanProtocol.AgentController.SetCharacterNodePhysics(Driver.GetCurrentFrame(), (uint)i, (byte)i, 1, 1));
+            //     }
+            //}
+            if (e.Message == "/jump")
+            {
+                foreach (var item in Driver.PersonasBySessionId)
+                {
+                    if (item.Value.AgentControllerId == null)
+                    {
+                        continue;
+                    }
+
+                    SanProtocol.AgentController.CharacterControllerInputReliable controllerInputPacket;
+                    if (item.Value.LastControllerInput == null)
+                    {
+                        controllerInputPacket = new SanProtocol.AgentController.CharacterControllerInputReliable(
+                            Driver.GetCurrentFrame(),
+                            item.Value.AgentControllerId.Value,
+                            1,
+                            1,
+                            0,
+                            0,
+                            0,
+                            0,
+                            0,
+                            0,
+                            0,
+                            new Quaternion()
+                            {
+                                ModifierFlag = false,
+                                UnknownA = 2,
+                                UnknownB = false,
+                                Values = new List<float>()
+                                {
+                                    0,
+                                    0,
+                                    0,
+                                }
+                            }
+                        );
+                    }
+                    else
+                    {
+                        controllerInputPacket = new SanProtocol.AgentController.CharacterControllerInputReliable(
+                            Driver.GetCurrentFrame(),
+                            item.Value.AgentControllerId.Value,
+                            1,
+                            1,
+                            item.Value.LastControllerInput.MoveRight,
+                            item.Value.LastControllerInput.MoveForward,
+                            item.Value.LastControllerInput.CameraYaw,
+                            item.Value.LastControllerInput.CameraPitch,
+                            item.Value.LastControllerInput.BehaviorYawDelta,
+                            item.Value.LastControllerInput.BehaviorPitchDelta,
+                            item.Value.LastControllerInput.CharacterForward,
+                            item.Value.LastControllerInput.CameraForward
+                        );
+                    }
+
+                    Driver.RegionClient.SendPacket(controllerInputPacket);
+                    Thread.Sleep(10);
+                }
+
+                Thread.Sleep(1000);
+
+                foreach (var item in this.Driver.PersonasBySessionId)
+                {
+                    if (item.Value.AgentControllerId == null)
+                    {
+                        continue;
+                    }
+
+                    SanProtocol.AgentController.CharacterControllerInputReliable controllerInputPacket;
+                    if (item.Value.LastControllerInput == null)
+                    {
+                        controllerInputPacket = new SanProtocol.AgentController.CharacterControllerInputReliable(
+                            Driver.GetCurrentFrame(),
+                            item.Value.AgentControllerId.Value,
+                            0,
+                            0,
+                            0,
+                            0,
+                            0,
+                            0,
+                            0,
+                            0,
+                            0,
+                            new Quaternion()
+                            {
+                                ModifierFlag = false,
+                                UnknownA = 2,
+                                UnknownB = false,
+                                Values = new List<float>()
+                                {
+                                    0,
+                                    0,
+                                    0,
+                                }
+                            }
+                        );
+                    }
+                    else
+                    {
+                        controllerInputPacket = new SanProtocol.AgentController.CharacterControllerInputReliable(
+                            Driver.GetCurrentFrame(),
+                            item.Value.AgentControllerId.Value,
+                            0,
+                            0,
+                            item.Value.LastControllerInput.MoveRight,
+                            item.Value.LastControllerInput.MoveForward,
+                            item.Value.LastControllerInput.CameraYaw,
+                            item.Value.LastControllerInput.CameraPitch,
+                            item.Value.LastControllerInput.BehaviorYawDelta,
+                            item.Value.LastControllerInput.BehaviorPitchDelta,
+                            item.Value.LastControllerInput.CharacterForward,
+                            item.Value.LastControllerInput.CameraForward
+                        );
+                    }
+
+                    Driver.RegionClient.SendPacket(controllerInputPacket);
+                    Thread.Sleep(50);
+                }
+
+                return;
+            }
+
+            //// Server crash
+            // Driver.RegionClient.SendPacket(new SanProtocol.AgentController.CharacterControllerInputReliable(GetCurrentFrame(), 2, 1, 1, 1, 0, 0, 0, 0, 0, 0, new Quaternion()));
+
+            //// Server crash (from spam?)
+            //foreach (var item in this.AllControllersBySession)
+            //{
+            //    for (int i = 0; i < 100; i++)
+            //    {
+            //        Driver.RegionClient.SendPacket(new SanProtocol.AgentController.WarpCharacterNode(item.Value.AgentControllerId, (uint)i));
+            //    }
+            //}
+
+            //// Server crash (from spam?)
+            // for (int i = 0; i < 255; i++)
+            // {
+            //     Driver.RegionClient.SendPacket(new SanProtocol.AgentController.SetCharacterNodePhysics(GetCurrentFrame(), MyAgentControllerId, (byte)i, 1, 1));
+            // }
+
+
+            if (persona.Name.Trim().ToLower() != "system")
+            {
+                if (!e.Message.Contains("://") && !e.Message.StartsWith('/'))
+                {
+                    if (TextToSpeechEnabled)
+                    {
+                        Driver.SpeakAzure($"{e.Message}");
+                    }
+                }
+            }
+
+            Output($"{persona.Name} [{persona.Handle}]: {e.Message}");
+        }
+
         public Thread ConversationThread { get; set; }
         volatile bool _IsConversationThreadRunning = false;
         public void ConversationThreadEntrypoint()
         {
-            while(_IsConversationThreadRunning)
+            while (_IsConversationThreadRunning)
             {
                 foreach (var conversation in ConversationsByAgentControllerId)
                 {
@@ -133,30 +775,37 @@ namespace EchoBot
         public class VoiceConversation
         {
             public PersonaData Persona { get; set; }
-            public Driver Driver { get; set; }
+            public ConversationBot Bot { get; set; }
 
             public int Id { get; set; }
             public DateTime? TimeWeStartedListeningToTarget { get; set; } = null;
             public DateTime? LastTimeWeListened { get; set; } = null;
+            public int LoudSamplesInBuffer { get; set; } = 0;
 
             public List<byte[]> VoiceBuffer { get; set; } = new List<byte[]>();
-            public ConcurrentQueue<List<byte[]>> VoiceBufferQueue = new ConcurrentQueue<List<byte[]>>();
+            public ConcurrentQueue<VoiceBufferQueueItem> VoiceBufferQueue = new ConcurrentQueue<VoiceBufferQueueItem>();
 
-            public VoiceConversation(PersonaData persona, Driver driver)
+            public VoiceConversation(PersonaData persona, ConversationBot bot)
             {
                 this.Persona = persona;
-                this.Driver = driver;
+                this.Bot = bot;
             }
 
             public void AddVoiceData(AudioData data)
             {
                 if (TimeWeStartedListeningToTarget == null)
                 {
-                    Console.WriteLine($"Started buffering voice for {Persona.UserName} ({Persona.Handle})");
+                    //  Console.WriteLine($"Started buffering voice for {Persona.UserName} ({Persona.Handle})");
                     TimeWeStartedListeningToTarget = DateTime.Now;
                 }
 
-                if (data.Volume > 300)
+                if (data.Volume > 500)
+                {
+                    LoudSamplesInBuffer++;
+                    LastTimeWeListened = DateTime.Now;
+                }
+
+                if (data.Volume > 200)
                 {
                     LastTimeWeListened = DateTime.Now;
                 }
@@ -166,16 +815,22 @@ namespace EchoBot
 
             public void Poll()
             {
-                if(VoiceBuffer.Count == 0)
+                if (VoiceBuffer.Count == 0)
                 {
                     return;
                 }
 
                 if (LastTimeWeListened != null)
                 {
-                    if ((DateTime.Now - LastTimeWeListened.Value).TotalMilliseconds > 500)
+                    if ((DateTime.Now - LastTimeWeListened.Value).TotalMilliseconds > 1000)
                     {
-                        VoiceBufferQueue.Enqueue(new List<byte[]>(VoiceBuffer.AsEnumerable()));
+                        VoiceBufferQueue.Enqueue(new VoiceBufferQueueItem()
+                        {
+                            VoiceBuffer = new List<byte[]>(VoiceBuffer.AsEnumerable()),
+                            LoudSamplesInBuffer = LoudSamplesInBuffer
+                        });
+
+                        LoudSamplesInBuffer = 0;
                         VoiceBuffer.Clear();
 
                         TimeWeStartedListeningToTarget = null;
@@ -185,9 +840,14 @@ namespace EchoBot
 
                 if (TimeWeStartedListeningToTarget != null)
                 {
-                    if ((DateTime.Now - TimeWeStartedListeningToTarget.Value).TotalMilliseconds > 29500)
+                    if ((DateTime.Now - TimeWeStartedListeningToTarget.Value).TotalMilliseconds > 15000)
                     {
-                        VoiceBufferQueue.Enqueue(new List<byte[]> (VoiceBuffer.AsEnumerable()));
+                        VoiceBufferQueue.Enqueue(new VoiceBufferQueueItem()
+                        {
+                            VoiceBuffer = new List<byte[]>(VoiceBuffer.AsEnumerable()),
+                            LoudSamplesInBuffer = LoudSamplesInBuffer
+                        });
+                        LoudSamplesInBuffer = 0;
                         VoiceBuffer.Clear();
 
                         TimeWeStartedListeningToTarget = null;
@@ -199,18 +859,31 @@ namespace EchoBot
             public HashSet<string> Blacklist { get; set; } = new HashSet<string>()
             {
                 "entity0x",
+                "MetaverseKing-3934",
             };
+
+            public class VoiceBufferQueueItem
+            {
+                public List<byte[]> VoiceBuffer { get; set; }
+                public int LoudSamplesInBuffer { get; set; }
+            }
 
             public bool ProcessVoiceBufferQueue()
             {
-                while(VoiceBufferQueue.TryDequeue(out List<byte[]> voiceBuffer))
+                while (VoiceBufferQueue.TryDequeue(out VoiceBufferQueueItem voiceBuffer))
                 {
-                    if(Blacklist.Contains(Persona.Handle.ToLower()))
+                    if (Blacklist.Contains(Persona.Handle.ToLower()))
                     {
                         return true;
                     }
 
-                    Console.WriteLine($"Dumping voice buffer for {Persona.UserName} ({Persona.Handle})");
+                    //  Console.WriteLine(voiceBuffer.LoudSamplesInBuffer);
+                    if (voiceBuffer.LoudSamplesInBuffer < 15)
+                    {
+                        return true;
+                    }
+
+                    //  Console.WriteLine($"Dumping voice buffer for {Persona.UserName} ({Persona.Handle})");
                     const int kFrameSize = 960;
                     const int kFrequency = 48000;
 
@@ -220,7 +893,7 @@ namespace EchoBot
                         var decoder = OpusDecoder.Create(kFrequency, 1);
                         var decompressedBuffer = new short[kFrameSize * 2];
 
-                        foreach (var item in voiceBuffer)
+                        foreach (var item in voiceBuffer.VoiceBuffer)
                         {
                             var numSamples = OpusPacketInfo.GetNumSamples(decoder, item, 0, item.Length);
                             var result = decoder.Decode(item, 0, item.Length, decompressedBuffer, 0, numSamples);
@@ -255,7 +928,29 @@ namespace EchoBot
                                 return true;
                             }
 
-                            Driver.SendChatMessage($"{Persona.UserName} ({Persona.Handle}): {jsonResult.Text}");
+                            Console.WriteLine($"{Persona.UserName} ({Persona.Handle}): {jsonResult.Text}");
+
+                            if (Bot.ResultsShouldBeWritten)
+                            {
+                                Bot.Driver.SendChatMessage($"{Persona.UserName} ({Persona.Handle}): {jsonResult.Text}");
+                            }
+
+                            //if(Bot.ResultsShouldBeSpoken)
+                            //{
+                            //    Bot.Speak(jsonResult.Text);
+                            //}
+
+                            if (Bot.ResultsShouldBeDrawn)
+                            {
+                                var text = jsonResult.Text;
+                                if (text.ToLower().Trim().StartsWith("draw "))
+                                {
+                                    var prompt = jsonResult.Text.Substring("draw ".Length).Trim();
+                                    var promptResult = Bot.GeneratePrompt(prompt);
+                                    Bot.Driver.SendChatMessage(prompt);
+                                    Bot.Driver.SendChatMessage(promptResult);
+                                }
+                            }
                         }
                         else
                         {
@@ -269,7 +964,6 @@ namespace EchoBot
             }
 
         }
-
 
         private void ClientVoiceMessages_OnLocalAudioData(object? sender, SanProtocol.ClientVoice.LocalAudioData e)
         {
@@ -287,23 +981,18 @@ namespace EchoBot
                 .Select(n => n.Value)
                 .Where(n => n.AgentControllerId == e.AgentControllerId)
                 .FirstOrDefault();
-            if(persona == null)
+            if (persona == null)
             {
                 return;
             }
 
-            if(!ConversationsByAgentControllerId.ContainsKey(e.AgentControllerId))
+            if (!ConversationsByAgentControllerId.ContainsKey(e.AgentControllerId))
             {
-                ConversationsByAgentControllerId[e.AgentControllerId] = new VoiceConversation(persona, Driver);
+                ConversationsByAgentControllerId[e.AgentControllerId] = new VoiceConversation(persona, this);
             }
             var conversation = ConversationsByAgentControllerId[e.AgentControllerId];
 
             conversation.AddVoiceData(e.Data);
-        }
-
-        private void ClientVoiceMessages_OnLoginReply(object? sender, SanProtocol.ClientVoice.LoginReply e)
-        {
-            Output("Logged into voice server: " + e.ToString());
         }
 
         private void ClientRegionMessages_OnSetAgentController(object? sender, SanProtocol.ClientRegion.SetAgentController e)
@@ -312,20 +1001,23 @@ namespace EchoBot
             Driver.VoiceClient.SendPacket(new SanProtocol.ClientVoice.LocalAudioStreamState(Driver.VoiceClient.InstanceId, 0, 1, 1));
 
             HaveIBeenCreatedYet = true;
-            if(Driver.MyPersonaData != null && Driver.MyPersonaData.ClusterId != null)
+            if (Driver.MyPersonaData != null && Driver.MyPersonaData.ClusterId != null)
             {
-                if(InitialClusterPositions.ContainsKey(Driver.MyPersonaData.ClusterId.Value))
+                if (InitialClusterPositions.ContainsKey(Driver.MyPersonaData.ClusterId.Value))
                 {
                     Output("Found my initial cluster position. Updating my voice position");
                     Driver.SetVoicePosition(InitialClusterPositions[Driver.MyPersonaData.ClusterId.Value], true);
+
+                    //var testMessage = new SanProtocol.ClientRegion.ClientRuntimeInventoryUpdatedNotification("Butts");
+                    //Driver.RegionClient.SendPacket(testMessage);
+                    //
+                    ////Server crash (from spam?)
+                    //for (int i = 0; i < 255; i++)
+                    //{
+                    //    Driver.RegionClient.SendPacket(new SanProtocol.AgentController.SetCharacterNodePhysics(Driver.GetCurrentFrame(), (uint)i, (byte)i, 1, 1));
+                    //}
                 }
             }
-        }
-
-        private void ClientRegionMessages_OnClientSetRegionBroadcasted(object? sender, SanProtocol.ClientRegion.ClientSetRegionBroadcasted e)
-        {
-            Output($"Sending to voice server: LocalSetRegionBroadcasted({e.Broadcasted})...");
-            Driver.VoiceClient.SendPacket(new LocalSetRegionBroadcasted(e.Broadcasted));
         }
 
         public bool HaveIBeenCreatedYet { get; set; } = false;
@@ -335,11 +1027,17 @@ namespace EchoBot
         {
             if (e.ResourceId == this.ItemClousterResourceId)
             {
-                Driver.WarpToPosition(e.SpawnPosition, e.SpawnRotation);
+                MarkedPosition = e.SpawnPosition;
+                // Driver.WarpToPosition(e.SpawnPosition, e.SpawnRotation);
                 Driver.SetVoicePosition(e.SpawnPosition, true);
             }
+            else if (e.ResourceId == ItemClousterResourceId_Exclamation)
+            {
+                //TextToSpeechEnabled = !TextToSpeechEnabled;
+                //Output("Use voice = " + TextToSpeechEnabled);
+            }
 
-            if(!HaveIBeenCreatedYet)
+            if (!HaveIBeenCreatedYet)
             {
                 InitialClusterPositions[e.ClusterId] = e.SpawnPosition;
                 return;
@@ -384,65 +1082,6 @@ namespace EchoBot
             }
 
             TargetPersonas.Add(persona);
-        }
-
-        private void ClientRegionMessages_OnUserLoginReply(object? sender, SanProtocol.ClientRegion.UserLoginReply e)
-        {
-            if (!e.Success)
-            {
-                throw new Exception("Failed to enter region");
-            }
-
-            Output("Logged into region: " + e.ToString());
-
-            var regionAddress = Driver.CurrentInstanceId!.Format();
-            Driver.KafkaClient.SendPacket(new SanProtocol.ClientKafka.EnterRegion(
-                regionAddress
-            ));
-
-            Driver.RegionClient.SendPacket(new SanProtocol.ClientRegion.ClientDynamicReady(
-                //new List<float>() { (float)(radius*Math.Sin(angleRads)), (float)(radius * Math.Cos(angleRads)), 5.0f },
-                new List<float>() { 0, 0, 0 },
-                new List<float>() { -1, 0, 0, 0 }, // upside down spin ish
-                new SanUUID(Driver.MyPersonaDetails!.Id),
-                "",
-                0,
-                1
-            ));
-
-            Driver.RegionClient.SendPacket(new SanProtocol.ClientRegion.ClientStaticReady(
-                1
-            ));
-        }
-
-        private void ClientKafkaMessages_OnPrivateChat(object? sender, PrivateChat e)
-        {
-            Output($"(PRIVMSG) {e.FromPersonaId}: {e.Message}");
-        }
-
-        private void ClientKafkaMessages_OnLoginReply(object? sender, SanProtocol.ClientKafka.LoginReply e)
-        {
-            if (!e.Success)
-            {
-                throw new Exception($"KafkaClient failed to login: {e.Message}");
-            }
-
-            Output("Kafka client logged in successfully");
-
-            // mark
-            //Driver.WebApi.SetAvatarIdAsync(Driver.MyPersonaDetails.Id, "0fd910bd763fa45580de460cb6f76c57").Wait();
-
-            // dnaelite
-            //Driver.WebApi.SetAvatarIdAsync(Driver.MyPersonaDetails.Id, "404e7e026b53ce8a8721d2fc3657f37f").Wait();
-
-            // default bot
-            Driver.WebApi.SetAvatarIdAsync(Driver.MyPersonaDetails.Id, "43668ab727c00fd7d33a5af1085493dd").Wait();
-
-            // Driver.JoinRegion("djm3n4c3-9174", "dj-s-outside-fun2").Wait();
-              Driver.JoinRegion("sansar-studios", "social-hub").Wait();
-        //   Driver.JoinRegion("nopnopnop", "owo").Wait();
-            //Driver.JoinRegion("mijekamunro", "gone-grid-city-prime-millenium").Wait();
-            //  Driver.JoinRegion("nopnopnop", "aaaaaaaaaaaa").Wait();
         }
     }
 }

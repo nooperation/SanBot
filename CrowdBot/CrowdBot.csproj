@@ -8,6 +8,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="AWSSDK.S3" Version="3.7.101.16" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\SanBot.Core\SanBot.Core\SanBot.Core.csproj" />
     <ProjectReference Include="..\Sanbot.Database\SanBot.Database.csproj" />
     <ProjectReference Include="..\SanProtocol\SanProtocol\SanProtocol.csproj" />
