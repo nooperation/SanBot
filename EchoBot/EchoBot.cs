@@ -146,7 +146,7 @@ namespace EchoBot
                         }
                     }
 
-                    //Thread.Sleep(10);
+                    Thread.Sleep(30);
                 }
             }
         }
@@ -158,6 +158,8 @@ namespace EchoBot
             "TwoInTheBusch-6219",
             "yash-0879",
             "Bigtod-6269",
+            "Ravioli",
+            "olympusMons",
         };
 
         private void ClientVoiceMessages_OnLocalAudioPosition(object? sender, LocalAudioPosition e)
@@ -517,6 +519,7 @@ namespace EchoBot
             TargetPersonas.RemoveAll(n => n.ClusterId == e.ClusterId);
         }
 
+        Dictionary<string, int> AnouncedTransformsPersistent = new Dictionary<string, int>();
         private void AnimationComponentMessages_OnCharacterTransformPersistent(object? sender, SanProtocol.AnimationComponent.CharacterTransformPersistent e)
         {
 
@@ -528,10 +531,16 @@ namespace EchoBot
                 Console.WriteLine("AnimationComponentMessages_OnCharacterTransformPersistent: UNKNOWN " + e.ComponentId);
                 return;
             }
-            if (IgnoredPeople.Contains(persona.Handle))
+            if(!AnouncedTransformsPersistent.ContainsKey(persona.Handle))
+            {
+                AnouncedTransformsPersistent.Add(persona.Handle, 0);
+            }
+            else if (AnouncedTransformsPersistent[persona.Handle] > 10)
             {
                 return;
             }
+
+            AnouncedTransformsPersistent[persona.Handle]++;
             Console.WriteLine($"AnimationComponentMessages_OnCharacterTransformPersistent: Username={persona.UserName} Handle={persona.Handle} Persona={persona.PersonaId} ");
 
             //
@@ -547,6 +556,8 @@ namespace EchoBot
             //}
         }
 
+        Dictionary<string, int> AnouncedTransforms = new Dictionary<string, int>();
+
         private void AnimationComponentMessages_OnCharacterTransform(object? sender, SanProtocol.AnimationComponent.CharacterTransform e)
         {
             var persona = TargetPersonas
@@ -557,10 +568,16 @@ namespace EchoBot
                 Console.WriteLine($"AnimationComponentMessages_OnCharacterTransform: UNKNOWN " + e.ComponentId );
                 return;
             }
-            if (IgnoredPeople.Contains(persona.Handle))
+
+            if (!AnouncedTransforms.ContainsKey(persona.Handle))
+            {
+                AnouncedTransforms.Add(persona.Handle, 0);
+            }
+            else if (AnouncedTransforms[persona.Handle] > 10)
             {
                 return;
             }
+            AnouncedTransforms[persona.Handle]++;
             Console.WriteLine($"AnimationComponentMessages_OnCharacterTransform: Username={persona.UserName} Handle={persona.Handle} Persona={persona.PersonaId} ");
 
             //

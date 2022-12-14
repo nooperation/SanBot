@@ -17,7 +17,7 @@ namespace CrowdBot
         public class BotConfig
         {
             public string Id { get; set; }
-            public ConfigFile Credentials { get; set; }
+            public ConfigFile Credentials { get; set; } = default!;
 
             public SanProtocol.AnimationComponent.CharacterTransformPersistent? SavedTransform { get; set; }
             public SanProtocol.AgentController.AgentPlayAnimation? SavedAnimation { get; set; }

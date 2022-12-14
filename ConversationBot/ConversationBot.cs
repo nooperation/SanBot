@@ -26,6 +26,7 @@ using Amazon.S3;
 using Amazon.Runtime.CredentialManagement;
 using Amazon.Runtime;
 using Amazon.S3.Transfer;
+using SweaterMaker;
 
 namespace EchoBot
 {
@@ -51,11 +52,12 @@ namespace EchoBot
         public ConcurrentDictionary<uint, VoiceConversation> ConversationsByAgentControllerId { get; set; } = new ConcurrentDictionary<uint, VoiceConversation>();
 
         public bool ResultsShouldBeWritten { get; set; } = false;
-        public bool TextToSpeechEnabled { get; set; } = true;
+        public bool TextToSpeechEnabled { get; set; } = false;
         public bool ResultsShouldBeSpoken { get; set; } = false;
         public bool ResultsShouldBeDrawn { get; set; } = false;
 
 
+#pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
 
         public class Rootobject
         {
@@ -113,7 +115,9 @@ namespace EchoBot
             public string Prompt { get; set; }
             public string SafeName { get; set; }
             public byte[] ImageBytes { get; set; }
+            public string? ImagePathOnDisk { get; set; }
         }
+#pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
 
 
         public ConversationBot()
@@ -151,16 +155,16 @@ namespace EchoBot
 
             Driver.RegionClient.ClientRegionMessages.OnClientRuntimeInventoryUpdatedNotification += ClientRegionMessages_OnClientRuntimeInventoryUpdatedNotification;
             //
-            // Driver.RegionToJoin = new RegionDetails("nop", "into-the-abyssal-void");
+           //  Driver.RegionToJoin = new RegionDetails("nop", "script-sandbox");
           //  Driver.RegionToJoin = new RegionDetails("anuamun", "bamboo-central");
-            Driver.RegionToJoin = new RegionDetails("djm3n4c3-9174", "reactive-dance-demo");
+         //   Driver.RegionToJoin = new RegionDetails("djm3n4c3-9174", "reactive-dance-demo");
 
             //   Driver.RegionToJoin = new RegionDetails("fayd", "android-s-dream");
             //   //  Driver.RegionToJoin = new RegionDetails("test", "base2");
             // Driver.RegionToJoin = new RegionDetails("sansar-studios", "r-d-starter-inventory-collection");
             // Driver.RegionToJoin = new RegionDetails("sansar-studios", "r-d-starter-inventory-collection");
             //  Driver.RegionToJoin = new RegionDetails("solasnagealai", "once-upon-a-midnight-dream");
-            //    Driver.RegionToJoin = new RegionDetails("sansar-studios", "social-hub");
+                Driver.RegionToJoin = new RegionDetails("sansar-studios", "social-hub");
             //    Driver.RegionToJoin = new RegionDetails("turtle-4332", "turtles-campfire");
 
             Driver.AutomaticallySendClientReady = true;
@@ -247,6 +251,47 @@ namespace EchoBot
         {
             Console.WriteLine("ClientRegionMessages_OnClientRuntimeInventoryUpdatedNotification: " + e.Message);
         }
+
+        #region Sweater_Maker_9000
+        public string GenerateSweaterPrompt(string prompt, string creatorName)
+        {
+            bool isTiled = false;
+
+            prompt = prompt.Trim();
+            if (prompt.ToLower().StartsWith("tiled "))
+            {
+                isTiled = true;
+                prompt = prompt.Substring("tiled ".Length).Trim();
+            }
+
+            var truncatedPrompt = prompt.Substring(0, Math.Min(128, prompt.Length));
+            var promptResult = GetImage(truncatedPrompt, isTiled).Result;
+
+            if(promptResult.ImagePathOnDisk == null)
+            {
+                Output("Oops, image path on disk is null?");
+                return "";
+            }
+
+            var description = $@"
+{prompt}
+
+Created by {creatorName} on {DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss")}
+-----
+Sampler: {promptResult.ResultInfo.sampler}
+Steps: {promptResult.ResultInfo.steps}
+Cfg Scale: {promptResult.ResultInfo.cfg_scale}
+Seed: {promptResult.ResultInfo.seed}
+Width: {promptResult.ResultInfo.width}
+Height: {promptResult.ResultInfo.height}
+";
+
+            var sweaterMaker = new SweaterMaker9000();
+            var storeUrl = sweaterMaker.Start(Driver, truncatedPrompt, description, promptResult.ImagePathOnDisk, promptResult.ImageBytes).Result;
+
+            return $"https://store.sansar.com/listings/{storeUrl}/{promptResult.SafeName}";
+        }
+        #endregion
 
         public string GeneratePrompt(string prompt)
         {
@@ -364,8 +409,11 @@ namespace EchoBot
                 var jsonResult2 = System.Text.Json.JsonSerializer.Deserialize<ImageResultData>(imgDataArray[0].ToString());
 
                 byte[] imageBytes = null;
+                string imagePathOnDisk = null;
                 if(jsonResult2.is_file && jsonResult2.name.StartsWith(@"C:\Users\Nop\AppData\Local\Temp\"))
                 {
+                    imagePathOnDisk = jsonResult2.name;
+
                     for (int i = 0; i < 10; i++)
                     {
                         try
@@ -407,6 +455,7 @@ namespace EchoBot
                         ImageBytes = new byte[] { },
                         SafeName = $"{predictionResult.seed}_{filename}",
                         Prompt = prompt,
+                        ImagePathOnDisk = imagePathOnDisk,
                         ResultInfo = predictionResult
                     };
                 }
@@ -416,6 +465,7 @@ namespace EchoBot
                     ImageBytes = imageBytes,
                     SafeName = $"{predictionResult.seed}_{filename}",
                     Prompt = prompt,
+                    ImagePathOnDisk = imagePathOnDisk,
                     ResultInfo = predictionResult
                 };
             }
@@ -573,6 +623,15 @@ namespace EchoBot
             {
                 var prompt = e.Message.Substring("draw ".Length).Trim();
                 var result = GeneratePrompt(prompt);
+                if (result != null)
+                {
+                    Driver.SendChatMessage(result);
+                }
+            }
+            if (e.Message.StartsWith("sweater "))
+            {
+                var prompt = e.Message.Substring("sweater ".Length).Trim();
+                var result = GenerateSweaterPrompt(prompt, $"{persona.Name} ({persona.Handle})");
                 if (result != null)
                 {
                     Driver.SendChatMessage(result);
