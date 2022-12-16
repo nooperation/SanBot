@@ -16,6 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\ObjectMaker\ObjectMaker.csproj" />
     <ProjectReference Include="..\SanBot.Core\SanBot.Core\SanBot.Core.csproj" />
     <ProjectReference Include="..\SanProtocol\SanProtocol\SanProtocol.csproj" />
     <ProjectReference Include="..\SanWebApi\SanWebApi\SanWebApi.csproj" />

@@ -27,6 +27,7 @@ using Amazon.Runtime.CredentialManagement;
 using Amazon.Runtime;
 using Amazon.S3.Transfer;
 using SweaterMaker;
+using SignMaker;
 
 namespace EchoBot
 {
@@ -256,6 +257,7 @@ namespace EchoBot
         public string GenerateSweaterPrompt(string prompt, string creatorName)
         {
             bool isTiled = false;
+            int size = 512;
 
             prompt = prompt.Trim();
             if (prompt.ToLower().StartsWith("tiled "))
@@ -263,9 +265,16 @@ namespace EchoBot
                 isTiled = true;
                 prompt = prompt.Substring("tiled ".Length).Trim();
             }
+            if (prompt.ToLower().StartsWith("big "))
+            {
+                size = 1024;
+                prompt = prompt.Substring("big ".Length).Trim();
+            }
 
             var truncatedPrompt = prompt.Substring(0, Math.Min(128, prompt.Length));
-            var promptResult = GetImage(truncatedPrompt, isTiled).Result;
+
+            Driver.SendChatMessage("Generating image...");
+            var promptResult = GetImage(truncatedPrompt, isTiled, size).Result;
 
             if(promptResult.ImagePathOnDisk == null)
             {
@@ -292,7 +301,54 @@ Height: {promptResult.ResultInfo.height}
             return $"https://store.sansar.com/listings/{storeUrl}/{promptResult.SafeName}";
         }
         #endregion
+        #region SignMaker_9000
+        public string GenerateSignPrompt(string prompt, string creatorName)
+        {
+            bool isTiled = false;
+            int size = 512;
 
+            prompt = prompt.Trim();
+            if (prompt.ToLower().StartsWith("tiled "))
+            {
+                isTiled = true;
+                prompt = prompt.Substring("tiled ".Length).Trim();
+            }
+            if (prompt.ToLower().StartsWith("big "))
+            {
+                size = 1024;
+                prompt = prompt.Substring("big ".Length).Trim();
+            }
+
+            var truncatedPrompt = prompt.Substring(0, Math.Min(128, prompt.Length));
+
+            Driver.SendChatMessage("Generating image...");
+            var promptResult = GetImage(truncatedPrompt, isTiled, size).Result;
+
+            if (promptResult.ImagePathOnDisk == null)
+            {
+                Output("Oops, image path on disk is null?");
+                return "";
+            }
+
+            var description = $@"
+{prompt}
+
+Created by {creatorName} on {DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss")}
+-----
+Sampler: {promptResult.ResultInfo.sampler}
+Steps: {promptResult.ResultInfo.steps}
+Cfg Scale: {promptResult.ResultInfo.cfg_scale}
+Seed: {promptResult.ResultInfo.seed}
+Width: {promptResult.ResultInfo.width}
+Height: {promptResult.ResultInfo.height}
+";
+
+            var signMaker = new SignMaker9000();
+            var storeUrl = signMaker.Start(Driver, truncatedPrompt, description, promptResult.ImagePathOnDisk, promptResult.ImageBytes).Result;
+
+            return $"https://store.sansar.com/listings/{storeUrl}/{promptResult.SafeName}";
+        }
+        #endregion
         public string GeneratePrompt(string prompt)
         {
             bool isTiled = false;
@@ -345,7 +401,7 @@ Height: {promptResult.ResultInfo.height}
             public bool is_file { get; set; }
         }
 
-        public async Task<PromptResultData> GetImage(string prompt, bool isTiled=false)
+        public async Task<PromptResultData> GetImage(string prompt, bool isTiled=false, int size=512)
         {
             Rootobject requestData = new Rootobject()
             {
@@ -357,7 +413,7 @@ Height: {promptResult.ResultInfo.height}
                     "",
                     "None",
                     "None",
-                    35,
+                    size > 512 ? 30 : 35,
                     "Euler a",
                     false,
                     isTiled,
@@ -370,8 +426,8 @@ Height: {promptResult.ResultInfo.height}
                     0,
                     0,
                     false,
-                    512,
-                    512,
+                    size,
+                    size,
                     false,
                     0.8,
                     0,
@@ -632,6 +688,15 @@ Height: {promptResult.ResultInfo.height}
             {
                 var prompt = e.Message.Substring("sweater ".Length).Trim();
                 var result = GenerateSweaterPrompt(prompt, $"{persona.Name} ({persona.Handle})");
+                if (result != null)
+                {
+                    Driver.SendChatMessage(result);
+                }
+            }   
+            if (e.Message.StartsWith("sign "))
+            {
+                var prompt = e.Message.Substring("sign ".Length).Trim();
+                var result = GenerateSignPrompt(prompt, $"{persona.Name} ({persona.Handle})");
                 if (result != null)
                 {
                     Driver.SendChatMessage(result);
