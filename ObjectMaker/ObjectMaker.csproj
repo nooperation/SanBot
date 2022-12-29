@@ -7,6 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Depends\LibSanBag\LibSanBag\LibSanBag.csproj" />
     <ProjectReference Include="..\SanBot.Core\SanBot.Core\SanBot.Core.csproj" />
     <ProjectReference Include="..\SanWebApi\SanWebApi\SanWebApi.csproj" />
   </ItemGroup>
@@ -16,6 +17,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Update="Resources\1195311f3b8eafa3313bad401a5ba82f.Cluster-Definition.v1.manifest.v0.pcClient">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Resources\1195311f3b8eafa3313bad401a5ba82f.Cluster-Definition.v1.payload.v0.pcClient">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Update="Resources\Handle_Albedo.jpg">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

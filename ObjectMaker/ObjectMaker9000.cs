@@ -1,4 +1,5 @@
-﻿using SanBot.Core;
+﻿using ObjectMaker;
+using SanBot.Core;
 using SanWebApi;
 using SanWebApi.Json;
 using System;
@@ -29,6 +30,7 @@ namespace SignMaker
         {
 
         }
+
         public async Task<string> Start(Driver driver, string shortName, string description, string texturePath, byte[] textureBytes)
         {
             shortName = shortName.Substring(0, Math.Min(64, shortName.Length));
@@ -54,6 +56,41 @@ namespace SignMaker
             await BuildResources();
             var filesToUpload = GetFilesToUpload();
 
+            var cluster = Path.GetFileName(filesToUpload.First(n => n.Contains("Cluster-Source.v1.manifest.v0.noVariants")));
+            var clusterId = cluster.Substring(0, cluster.IndexOf('.'));
+
+
+            var newMaterialPath = filesToUpload.Where(n =>
+                n.Contains("Material-Resource.v1.payload.v0.noVariants") &&
+                !n.EndsWith("cac0284aee0cf961bda4d59ef22130f2.Material-Resource.v1.payload.v0.noVariants") &&
+                !n.EndsWith("dcb7ae1b8de01fd8b38ad4dad5e109c2.Material-Resource.v1.payload.v0.noVariants")).FirstOrDefault();
+            var newMaterialId = Path.GetFileName(newMaterialPath);
+            newMaterialId = newMaterialId.Substring(0, newMaterialId.IndexOf('.'));
+
+            var newTextureResourcePath = filesToUpload.Where(n =>
+                n.Contains("Texture-Resource.v3.payload.v0.noVariants") &&
+                !n.EndsWith("277ce498ae90651ef3a1598ed1c3c609.Texture-Resource.v3.payload.v0.noVariants") &&
+                !n.EndsWith("7b066564ef954b9219b1f43dabfb38d9.Texture-Resource.v3.payload.v0.noVariants") &&
+                !n.EndsWith("01a49a3efaf5f605039b73b7439428cf.Texture-Resource.v3.payload.v0.noVariants") &&
+                !n.EndsWith("4a19a59f97b345345744b8e7368c6666.Texture-Resource.v3.payload.v0.noVariants")).FirstOrDefault();
+            var newTextureResourceId = Path.GetFileName(newTextureResourcePath);
+            newTextureResourceId = newTextureResourceId.Substring(0, newTextureResourceId.IndexOf('.'));
+
+            var newClusterDef = ClusterMaker.GenerateNewCluster(
+                "Resources/1195311f3b8eafa3313bad401a5ba82f.Cluster-Definition.v1.payload.v0.pcClient",
+                "Resources/1195311f3b8eafa3313bad401a5ba82f.Cluster-Definition.v1.manifest.v0.pcClient",
+                clusterId,
+                newMaterialId,
+                newTextureResourceId
+            );
+
+            File.WriteAllBytes(Path.Join(kOutputDirectory, $"{clusterId}.Cluster-Definition.v1.payload.v0.pcClient"), newClusterDef.ClusterBytes);
+            File.WriteAllBytes(Path.Join(kOutputDirectory, $"{clusterId}.Cluster-Definition.v1.manifest.v0.pcClient"), newClusterDef.ManifestBytes);
+            //File.WriteAllBytes(Path.Join(kOutputDirectory, $"{clusterId}.Cluster-Definition.v1.payload.v0.pcClient"), File.ReadAllBytes("Resources/1195311f3b8eafa3313bad401a5ba82f.Cluster-Definition.v1.payload.v0.pcClient"));
+            //File.WriteAllBytes(Path.Join(kOutputDirectory, $"{clusterId}.Cluster-Definition.v1.manifest.v0.pcClient"), File.ReadAllBytes("Resources/1195311f3b8eafa3313bad401a5ba82f.Cluster-Definition.v1.manifest.v0.pcClient"));
+            filesToUpload.Add($"{clusterId}.Cluster-Definition.v1.payload.v0.pcClient");
+            filesToUpload.Add($"{clusterId}.Cluster-Definition.v1.manifest.v0.pcClient");
+
             var myStores = await driver.WebApi.GetMyStores();
             var myStore = myStores.data.First();
 
@@ -65,8 +102,13 @@ namespace SignMaker
             Console.WriteLine("UploadFiles...");
             await UploadFiles(filesToUpload);
 
-            var cluster = Path.GetFileName(filesToUpload.First(n => n.Contains("Cluster-Source.v1.manifest.v0.noVariants")));
-            var clusterId = cluster.Substring(0, cluster.IndexOf('.'));
+
+
+
+
+            Console.WriteLine("New material id = " + newMaterialId);
+
+
 
             Console.WriteLine("UploadLicense...");
             var licenseAssetId = await UploadLicense("Test License", 0, clusterId, new Guid(myPersona.Id));
@@ -292,34 +334,6 @@ value = ""1.0""
                               @$"-application.logging.disableTags ComponentManager MeshDuplicateCheck AssetSystem EventQueue ResourceLoader TextureStreamingManager " +
                               @$"-application.logging.logFilePath C:\Users\Nop\AppData\Local\LindenLab\SansarClient\Log\2022_12_15-06_13_15_SansarClient.log ";
             
-            /*
-            var commandLineXX = @$"-singleInstance true " +
-                              @$"-memoryTrackingLevel none " +
-                              @$"-recordResourceWriting false " +
-                              @$"-textOutput {kTempDirectory}/logs/730cbac54aa6476caa8f75166a3fd953_log.txt " +
-                              @$"-inputFile !D:models/sign2.fbx !D:models/sign2.fbx " +
-                              @$"-outputFile {kTempDirectory}/Import/9567287f60dd4c0b93a40d602033907f_source.bag {kTempDirectory}/Import/9567287f60dd4c0b93a40d602033907f_import.bag {kTempDirectory}/Import/9567287f60dd4c0b93a40d602033907f_runtime.bag " +
-                              @$"-buildTargets RUNTIME:ContentTools/targets/Mesh.toml " +
-                              $@"-buildFolder {kTempDirectory}/Import/BF/ " +
-                              @$"-buildTarget PrepForMaterialEditor " +
-                              @$"-sessionId {SessionId} " +
-                              @$"-bodyMotionType dynamic " +
-                              @$"-rigFilePath """" " +
-                              @$"-generatePreviewTexture false " +
-                              @$"-doCombineMeshes false " +
-                              @$"-importItemType Mesh " +
-                              @$"-validateSkeletonAabb true " +
-                              @$"-useReferenceSkeleton false " +
-                              @$"-referenceMaleSkeletonFilePath "" " +
-                              @$"-referenceFemaleSkeletonFilePath "" " +
-                              @$"-validateTransformsFlag 7 " +
-                              @$"-application.console.visible true " +
-                              @$"-application.console.title Sansar " +
-                              @$"-application.logging.timeStamps utc " +
-                              @$"-application.logging.logAllTagged true " +
-                              @$"-application.logging.disableTags ComponentManager MeshDuplicateCheck AssetSystem EventQueue ResourceLoader TextureStreamingManager " +
-                              @$"-application.logging.logFilePath {kTempDirectory}/Logs/2022_12_13-18_23_38_SansarClient.log";
-            */
             var process = Process.Start(@"C:\Program Files\Sansar\Client\ImportContent.exe", commandLine);
             await process.WaitForExitAsync();
         }

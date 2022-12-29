@@ -34,7 +34,7 @@ namespace EchoBot
         public SanUUID ItemClousterResourceId_Exclamation { get; set; } = new SanUUID("beb1c1d298aa865fc5d5326dada8d2a7"); // ! reaction thing
         /// public SanUUID ItemClousterResourceId_Exclamation { get; set; } = new SanUUID("beb1c1d298aa865fc5d5326dada8d2a7"); // ! reaction thing
         //public SanUUID ItemClousterResourceId { get; set; } = new SanUUID("97477c6e978aa38d20e0bb8a60e85830"); // lightning reaction thing
-        public SanUUID ItemClousterResourceId { get; set; } = new SanUUID("04c2d5a7ea3d6fb47af66669cfdc9f9a"); // heart reaction thing
+        public SanUUID ItemClousterResourceId { get; set; } = new SanUUID("04c2d5a7ea3d6fb47af66669cfdcffff"); // heart reaction thing
                                                                                                                // public SanUUID ItemClousterResourceId { get; set; } = new SanUUID("04c2d5a7ea3d6fb47af66669cfdc9f9a"); // heart reaction thing
                                                                                                                //public SanUUID ItemClousterResourceId { get; set; } = new SanUUID("b8534d067b0613a509b0155e0dacb0b2"); // fox doll
         public bool FollowTargetMode { get; set; } = false;
@@ -104,13 +104,16 @@ namespace EchoBot
             Driver.VoiceClient.ClientVoiceMessages.OnLocalAudioStreamState += ClientVoiceMessages_OnLocalAudioStreamState;
             Driver.VoiceClient.ClientVoiceMessages.OnLocalAudioPosition += ClientVoiceMessages_OnLocalAudioPosition;
 
-        // https://atlas.sansar.com/experiences/sansar-studios/social-hub
-        //  Driver.RegionToJoin = new RegionDetails("nopnopnop", "stadium-swim");
-        Driver.RegionToJoin = new RegionDetails("sansar-studios", "social-hub");
-          //  Driver.RegionToJoin = new RegionDetails("djm3n4c3-9174", "reactive-dance-demo");
+            //sansar://sansar.com/experience/tahla-sansar/pifdvvo3t?instance=8b12f707-4aa4-4fa5-a532-feab7b3e4e64&event=cfd8b98b
+            // https://atlas.sansar.com/experiences/sansar-studios/social-hub
+            //  Driver.RegionToJoin = new RegionDetails("nopnopnop", "stadium-swim");
+            //    Driver.RegionToJoin = new RegionDetails("sansar-studios", "social-hub");
+            //  Driver.RegionToJoin = new RegionDetails("djm3n4c3-9174", "reactive-dance-demo");
+           // Driver.RegionToJoin = new RegionDetails("tahla-sansar", "pifdvvo3t");
 
             //  https://atlas.sansar.com/experiences/loz-sansar/stadium-swim
-            // Driver.RegionToJoin = new RegionDetails("nopnopnop", "owo");
+             Driver.RegionToJoin = new RegionDetails("nop", "flat2");
+           //  Driver.RegionToJoin = new RegionDetails("nopnopnop", "owo");
             Driver.AutomaticallySendClientReady = true;
             Driver.UseVoice = true;
             Driver.StartAsync(config).Wait();
