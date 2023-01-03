@@ -82,10 +82,10 @@ namespace CrowdBot
             Driver.RegionClient.WorldStateMessages.OnCreateClusterViaDefinition += WorldStateMessages_OnCreateClusterViaDefinition;
             Driver.RegionClient.WorldStateMessages.OnDestroyCluster += WorldStateMessages_OnDestroyCluster;
 
-            Driver.RegionToJoin = new RegionDetails("nop", "flat2");
+           /// Driver.RegionToJoin = new RegionDetails("nop", "flat2");
            // Driver.RegionToJoin = new RegionDetails("nop", "flat");
           //  Driver.RegionToJoin = new RegionDetails("sansar-studios", "club-sansar");
-            // Driver.RegionToJoin = new RegionDetails("sansar-studios", "social-hub");
+           Driver.RegionToJoin = new RegionDetails("sansar-studios", "social-hub");
 
             Driver.AutomaticallySendClientReady = true;
             Driver.UseVoice = false;
@@ -425,7 +425,7 @@ namespace CrowdBot
             if(UseCatchprase)
             {
                 var myPos = Driver.MyPersonaData.Position;
-                var distToTarget = Distance(myPos[0], persona.Position[0], myPos[1], persona.Position[1], myPos[2], persona.Position[2]);
+                var distToTarget = Utils.Distance(myPos[0], persona.Position[0], myPos[1], persona.Position[1], myPos[2], persona.Position[2]);
                 // Console.WriteLine($"Distance to {persona.UserName} = {distToTarget}");
                 if (distToTarget <= 2.0)
                 {
@@ -454,11 +454,6 @@ namespace CrowdBot
             {
                 Driver.SetPosition(e.Position, e.OrientationQuat, e.GroundComponentId, false);
             }
-        }
-
-        private float Distance(float x1, float x2, float y1, float y2, float z1, float z2)
-        {
-            return (float)Math.Sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2) + (z1 - z2)*(z1 - z2));
         }
 
         private void ClientRegionMessages_OnSetAgentController(object? sender, SanProtocol.ClientRegion.SetAgentController e)
@@ -608,7 +603,7 @@ namespace CrowdBot
                     targetAvatarAssetId = match.Groups["avatarAssetId"].Value;
                 }
 
-                if(!AvatarAssetIdExists(targetAvatarAssetId))
+                if(!Utils.AvatarAssetIdExists(targetAvatarAssetId))
                 {
                     Say($"Could not find avatar asset for {cloneTargetHandle}");
                     return;
@@ -645,26 +640,7 @@ namespace CrowdBot
             Driver.Disconnect();
         }
 
-        public bool AvatarAssetIdExists(string avatarAssetId)
-        {
-            try
-            {
-                var assetUri = @$"https://sansar-asset-production.s3-us-west-2.amazonaws.com/{avatarAssetId}.Cluster-Source.v1.manifest.v0.noVariants";
-                using (var client = new WebClient())
-                {
-                    using (var readStream = client.OpenRead(assetUri))
-                    {
-                        readStream.ReadByte();
-                    }
-                }
-            }
-            catch
-            {
-                return false;
-            }
 
-            return true;
-        }
 
         public void StartFollowing(PersonaData persona)
         {
