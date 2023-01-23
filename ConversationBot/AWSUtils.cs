@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using static ConversationBot.ImageGenerator;
 
 namespace ConversationBot
 {
@@ -25,6 +26,16 @@ namespace ConversationBot
             }
 
             throw new Exception("Failed to get AWS Credentials");
+        }
+
+        public static async Task<string> UploadBytes(PromptResultData data)
+        {
+            if (data.ImageBytes.Length >= 4 && data.ImageBytes[0] != '%' && data.ImageBytes[1] != 'P' && data.ImageBytes[2] != 'N' && data.ImageBytes[3] != 'G')
+            {
+                throw new Exception("Attempted to upload bad file");
+            }
+
+            return await AWSUtils.UploadImage(data.ImageBytes, data.SafeName, data.Prompt);
         }
 
         public static async Task<string?> UploadImage(byte[] data, string name, string fullPrompt)

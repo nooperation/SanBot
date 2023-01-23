@@ -36,6 +36,8 @@ using static EchoBot.VoiceConversation;
 using NAudio;
 using ConversationBot;
 using static ConversationBot.ImageGenerator;
+using static ConversationBot.OpenAiChat;
+using static SanWebApi.Json.ExtractionResponse;
 
 namespace EchoBot
 {
@@ -60,10 +62,17 @@ namespace EchoBot
 
         public ConcurrentDictionary<uint, VoiceConversation> ConversationsByAgentControllerId { get; set; } = new ConcurrentDictionary<uint, VoiceConversation>();
 
-        public bool ResultsShouldBeWritten { get; set; } = true;
-        public bool TextToSpeechEnabled { get; set; } = true;
-        public bool ResultsShouldBeSpoken { get; set; } = false;
-        public bool ResultsShouldBeDrawn { get; set; } = false;
+        public bool SpeechToTextSayEnabled { get; set; } = false;
+
+        public bool TextToSpeechEnabled { get; set; } = false;
+        public bool DrawEnabled { get; set; } = false;
+        public bool SpeechToTextDrawEnabled { get; set; } = false;
+        public bool SweaterMakerEnabled { get; set; } = false;
+        public bool SignMakerEnabled { get; set; } = false;
+
+        public bool ChatbotEnabled { get; set; } = false;
+        public bool ChatbotSayResult { get; set; } = false;
+        public bool ChatbotSpeakResult { get; set; } = true;
 
         public ConversationBot()
         {
@@ -100,7 +109,7 @@ namespace EchoBot
 
             Driver.RegionClient.ClientRegionMessages.OnClientRuntimeInventoryUpdatedNotification += ClientRegionMessages_OnClientRuntimeInventoryUpdatedNotification;
             //
-            Driver.RegionToJoin = new RegionDetails("nop", "flat");
+        //    Driver.RegionToJoin = new RegionDetails("nop", "flat");
           //  Driver.RegionToJoin = new RegionDetails("anuamun", "bamboo-central");
          //   Driver.RegionToJoin = new RegionDetails("djm3n4c3-9174", "reactive-dance-demo");
 
@@ -109,7 +118,7 @@ namespace EchoBot
             // Driver.RegionToJoin = new RegionDetails("sansar-studios", "r-d-starter-inventory-collection");
             // Driver.RegionToJoin = new RegionDetails("sansar-studios", "r-d-starter-inventory-collection");
             //  Driver.RegionToJoin = new RegionDetails("solasnagealai", "once-upon-a-midnight-dream");
-            //   Driver.RegionToJoin = new RegionDetails("sansar-studios", "social-hub");
+               Driver.RegionToJoin = new RegionDetails("sansar-studios", "social-hub");
             //    Driver.RegionToJoin = new RegionDetails("turtle-4332", "turtles-campfire");
 
             Driver.AutomaticallySendClientReady = true;
@@ -257,20 +266,12 @@ Height: {promptResult.ResultInfo.height}
             var truncatedPrompt = prompt.Substring(0, Math.Min(128, prompt.Length));
             var promptResult = ImageGenerator.GetImage(truncatedPrompt, isTiled).Result;
 
-            var url = UploadBytes(promptResult).Result;
+            var url = AWSUtils.UploadBytes(promptResult).Result;
 
             return url;
         }
 
-        public async Task<string> UploadBytes(PromptResultData data)
-        {
-            if (data.ImageBytes.Length >= 4 && data.ImageBytes[0] != '%' && data.ImageBytes[1] != 'P' && data.ImageBytes[2] != 'N' && data.ImageBytes[3] != 'G')
-            {
-                throw new Exception("Attempted to upload bad file");
-            }
-
-            return await AWSUtils.UploadImage(data.ImageBytes, data.SafeName, data.Prompt);
-        }
+        private List<string> LastMessages = new List<string>();
 
         private void ClientKafkaMessages_OnRegionChat(object? sender, RegionChat e)
         {
@@ -285,16 +286,17 @@ Height: {promptResult.ResultInfo.height}
                 return;
             }
 
-            if (Driver.MyPersonaData != null && e.FromPersonaId == Driver.MyPersonaData.PersonaId)
-            {
-                return;
-            }
-
             if (Driver.InitialTimestamp == 0 || e.Timestamp < Driver.InitialTimestamp)
             {
                 Output($"[OLD] {persona.Name}: {e.Message}");
                 return;
             }
+
+            if (Driver.MyPersonaData != null && e.FromPersonaId == Driver.MyPersonaData.PersonaId)
+            {
+                return;
+            }
+
 
             // Client crash (all):
             // /animate f8d1b2b4-41f4-3e02-5a9b-c2f8b299549b 0 1 0  (mode = 0, speed =1, type = 0) (or was this 2?)
@@ -406,7 +408,7 @@ Height: {promptResult.ResultInfo.height}
 
                 return;
             }
-            if (e.Message.StartsWith("draw "))
+            if (DrawEnabled && e.Message.StartsWith("draw "))
             {
                 var prompt = e.Message.Substring("draw ".Length).Trim();
                 var result = GeneratePrompt(prompt);
@@ -415,7 +417,7 @@ Height: {promptResult.ResultInfo.height}
                     Driver.SendChatMessage(result);
                 }
             }
-            if (e.Message.StartsWith("sweater "))
+            if (SweaterMakerEnabled && e.Message.StartsWith("sweater "))
             {
                 var prompt = e.Message.Substring("sweater ".Length).Trim();
                 var result = GenerateSweaterPrompt(prompt, $"{persona.Name} ({persona.Handle})");
@@ -424,7 +426,7 @@ Height: {promptResult.ResultInfo.height}
                     Driver.SendChatMessage(result);
                 }
             }   
-            if (e.Message.StartsWith("sign "))
+            if (SignMakerEnabled && e.Message.StartsWith("sign "))
             {
                 var prompt = e.Message.Substring("sign ".Length).Trim();
                 var result = GenerateSignPrompt(prompt, $"{persona.Name} ({persona.Handle})");
@@ -598,9 +600,58 @@ Height: {promptResult.ResultInfo.height}
                 }
             }
 
+            if(ChatbotEnabled)
+            {
+            //    RunChatQuery(persona.Name, persona.Handle, e.Message);
+            }
+
             Output($"{persona.Name} [{persona.Handle}]: {e.Message}");
         }
 
+
+        public int NumHistoriesToKeep { get; set; } = 3;
+        public Dictionary<string, List<ConversationData>> ConversationHistoriesByPersonaHandle { get; set; } = new Dictionary<string, List<ConversationData>>();
+
+        public void RunChatQuery(string personaName, string personaHandle, string query)
+        {
+            if(!ConversationHistoriesByPersonaHandle.ContainsKey(personaHandle))
+            {
+                ConversationHistoriesByPersonaHandle.Add(personaHandle, new List<ConversationData>()
+                {
+                    new ConversationData
+                    {
+                        Query = "Hello",
+                        Response = $"Hi {personaName}, Welcome to Sansar"
+                    }
+                });
+            }
+
+            var previousHistory = ConversationHistoriesByPersonaHandle[personaHandle].Take(NumHistoriesToKeep).ToList();
+
+            var result = OpenAiChat.RunPrompt(query, personaName, previousHistory).Result;
+            Output("AI RESULT: " + result);
+
+            ConversationHistoriesByPersonaHandle[personaHandle].Add(new ConversationData()
+            {
+                Query = query,
+                Response = result
+            });
+
+            var historyCount = ConversationHistoriesByPersonaHandle[personaHandle].Count;
+            if(historyCount > NumHistoriesToKeep)
+            {
+                ConversationHistoriesByPersonaHandle[personaHandle].RemoveRange(0, historyCount - NumHistoriesToKeep);
+            }
+
+            if(ChatbotSayResult)
+            {
+                Driver.SendChatMessage(result);
+            }
+            if(ChatbotSpeakResult)
+            {
+                Driver.SpeakAzure(result);
+            }
+        }
         public Thread ConversationThread { get; set; }
         volatile bool _IsConversationThreadRunning = false;
         public void ConversationThreadEntrypoint()
@@ -674,6 +725,7 @@ Height: {promptResult.ResultInfo.height}
 
             conversation.AddVoiceData(e.Data);
         }
+
         private void ConversationBot_OnSpeechToText(object? sender, SpeechToTextItem result)
         {
             // MAIN THREAD
@@ -684,17 +736,51 @@ Height: {promptResult.ResultInfo.height}
 
             Console.WriteLine($"{result.Persona.UserName} ({result.Persona.Handle}): {result.Text}");
 
-            if (ResultsShouldBeWritten)
+            if (SpeechToTextSayEnabled)
             {
                 Driver.SendChatMessage($"{result.Persona.UserName} ({result.Persona.Handle}): {result.Text}");
             }
 
-            //if(Bot.ResultsShouldBeSpoken)
-            //{
-            //    Bot.Speak(result.Text);
-            //}
+            if (DrawEnabled && SpeechToTextDrawEnabled)
+            {
+                var text = result.Text;
+                if (text.ToLower().Trim().StartsWith("draw "))
+                {
+                    var prompt = result.Text.Substring("draw ".Length).Trim();
+                    var promptResult = GeneratePrompt(prompt);
+                    Driver.SendChatMessage(prompt);
+                    Driver.SendChatMessage(promptResult);
+                }
+            }
+            if(ChatbotEnabled)
+            {
+                RunChatQuery(result.Persona.UserName, result.Persona.Handle, result.Text);
+            }
 
-            if (ResultsShouldBeDrawn)
+            Console.WriteLine("Result = " + result.Text);
+        }
+
+        private void ConversationBot_OnSpeechToText_Translated(object? sender, SpeechToTextItem result)
+        {
+            // MAIN THREAD
+            if (result.Text.Length == 0)
+            {
+                return;
+            }
+            var translated = ToEnglishAzure(result.Text);
+            if(translated == null)
+            {
+                return;
+            }
+
+            Console.WriteLine($"{result.Persona.UserName} ({result.Persona.Handle}): [{translated.sourceLanguage}] {translated.translatedText}");
+
+            if (SpeechToTextSayEnabled)
+            {
+                Driver.SendChatMessage($"{result.Persona.UserName} ({result.Persona.Handle}): [{translated.sourceLanguage}] {translated.translatedText}");
+            }
+
+            if (DrawEnabled && SpeechToTextDrawEnabled)
             {
                 var text = result.Text;
                 if (text.ToLower().Trim().StartsWith("draw "))
@@ -742,13 +828,13 @@ Height: {promptResult.ResultInfo.height}
             if (e.ResourceId == this.ItemClousterResourceId)
             {
                 MarkedPosition = e.SpawnPosition;
-                // Driver.WarpToPosition(e.SpawnPosition, e.SpawnRotation);
+                Driver.WarpToPosition(e.SpawnPosition, e.SpawnRotation);
                 Driver.SetVoicePosition(e.SpawnPosition, true);
             }
             else if (e.ResourceId == ItemClousterResourceId_Exclamation)
             {
-                //TextToSpeechEnabled = !TextToSpeechEnabled;
-                //Output("Use voice = " + TextToSpeechEnabled);
+                ChatbotEnabled = !ChatbotEnabled;
+                Output("ChatbotEnabled = " + ChatbotEnabled);
             }
 
             if (!HaveIBeenCreatedYet)

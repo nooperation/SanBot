@@ -12,6 +12,7 @@ using System.Text;
 using System.Threading.Tasks;
 using static EchoBot.ConversationBot;
 using static SanBot.Core.Driver;
+using Newtonsoft.Json;
 
 namespace EchoBot
 {
@@ -46,13 +47,13 @@ namespace EchoBot
                 TimeWeStartedListeningToTarget = DateTime.Now;
             }
 
-            if (data.Volume > 500)
+            if (data.Volume > 300)
             {
                 LoudSamplesInBuffer++;
                 LastTimeWeListened = DateTime.Now;
             }
 
-            if (data.Volume > 200)
+            if (data.Volume > 100)
             {
                 LastTimeWeListened = DateTime.Now;
             }
@@ -125,7 +126,6 @@ namespace EchoBot
         public HashSet<string> Blacklist { get; set; } = new HashSet<string>()
         {
             "entity0x",
-            "MetaverseKing-3934",
         };
 
         public class VoiceBufferQueueItem
@@ -140,9 +140,9 @@ namespace EchoBot
             LocalWhisper = 1,
             Azure = 2,
         }
-        public SpeechApi SpeechToTextApi { get; set; } = SpeechApi.LocalWhisper;
+        public SpeechApi SpeechToTextApi { get; set; } = SpeechApi.Azure;
 
-        
+
 
         public static byte[] OpusToRaw(List<byte[]> opusSamplesIn, int sampleRateOut = 16000, int bitsOut = 16, int channelsOut = 1)
         {
@@ -182,6 +182,81 @@ namespace EchoBot
             }
         }
 
+        private static readonly string endpoint = "https://api.cognitive.microsofttranslator.com";
+
+
+        public class TranslationResult
+        {
+            public Detectedlanguage detectedLanguage { get; set; }
+            public Translation[] translations { get; set; }
+        }
+
+        public class Detectedlanguage
+        {
+            public string language { get; set; }
+            public float score { get; set; }
+        }
+
+        public class Translation
+        {
+            public string text { get; set; }
+            public string to { get; set; }
+        }
+
+        public record RealTranslationResult(string sourceLanguage, string translatedText);
+        public static RealTranslationResult? ToEnglishAzure(string textToTranslate)
+        {
+            var azureConfigPath = Path.Join(Driver.GetSanbotConfigPath(), "azure.json");
+            var configFileContents = File.ReadAllText(azureConfigPath);
+            var azureConfig = System.Text.Json.JsonSerializer.Deserialize<AzureConfigPayload>(configFileContents);
+            if (azureConfig == null || azureConfig.keyTranslator.Length == 0 || azureConfig.region.Length == 0)
+            {
+                throw new Exception("Invalid azure config");
+            }
+
+            // Input and output languages are defined as parameters.
+            string route = "/translate?api-version=3.0&to=en";
+            object[] body = new object[] { new { Text = textToTranslate } };
+            var requestBody = JsonConvert.SerializeObject(body);
+
+            using (var client = new HttpClient())
+            using (var request = new HttpRequestMessage())
+            {
+                // Build the request.
+                request.Method = HttpMethod.Post;
+                request.RequestUri = new Uri(endpoint + route);
+                request.Content = new StringContent(requestBody, Encoding.UTF8, "application/json");
+                request.Headers.Add("Ocp-Apim-Subscription-Key", azureConfig.keyTranslator);
+                // location required if you're using a multi-service or regional (not global) resource.
+                request.Headers.Add("Ocp-Apim-Subscription-Region", azureConfig.region);
+
+                // Send the request and get response.
+                HttpResponseMessage response = client.SendAsync(request).Result;
+                // Read response as a string.
+                string result = response.Content.ReadAsStringAsync().Result;
+
+                var resulResult = System.Text.Json.JsonSerializer.Deserialize<TranslationResult[]>(result);
+                if (resulResult == null)
+                {
+                    return null;
+                }
+
+                var x = resulResult.FirstOrDefault();
+                if (x == null)
+                {
+                    return null;
+                }
+
+                var y = x.translations.FirstOrDefault();
+                if (y == null)
+                {
+                    return null;
+                }
+
+
+                return new RealTranslationResult(x.detectedLanguage.language, y.text);
+            }
+        }
 
         public static string? SpeechToTextAzure(byte[] rawWavBytes)
         {
@@ -197,6 +272,8 @@ namespace EchoBot
             var audioConfig = AudioConfig.FromStreamInput(pushStream);
 
             var speechConfig = SpeechConfig.FromSubscription(azureConfig.key1, azureConfig.region);
+            speechConfig.SetProfanity(ProfanityOption.Raw);
+
             var recognizer = new SpeechRecognizer(speechConfig, audioConfig);
             var results = recognizer.RecognizeOnceAsync().Result;
 
