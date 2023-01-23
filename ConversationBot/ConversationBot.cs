@@ -73,6 +73,20 @@ namespace EchoBot
         public bool ChatbotEnabled { get; set; } = false;
         public bool ChatbotSayResult { get; set; } = false;
         public bool ChatbotSpeakResult { get; set; } = true;
+        public string ChatbotPrompt { get; set; } = "You are a bot that is playing sansar and talking in the social hub. Your name is bot. There aren't many people around and you're bored. Do not respond in long sentences";
+        public int NumHistoriesToKeep { get; set; } = 2;
+        public double ChatbotActiveConversationDurationSeconds { get; set; } = 60;
+        public Dictionary<string, List<ConversationData>> ConversationHistoriesByPersonaHandle { get; set; } = new Dictionary<string, List<ConversationData>>();
+        public Dictionary<string, DateTime> ChatbotLastConversationTimeByPersonaHandle { get; set; } = new Dictionary<string, DateTime>();
+
+        public List<string> ChatbotKeywords { get; set; } = new List<string>()
+        {
+            "okay google",
+            "alexa",
+            "robot",
+            "chatbot"
+        };
+
 
         public ConversationBot()
         {
@@ -408,6 +422,12 @@ Height: {promptResult.ResultInfo.height}
 
                 return;
             }
+            if(e.Message.ToLower().StartsWith("prompt "))
+            {
+                ChatbotPrompt = e.Message.Substring("prompt ".Length).Trim();
+                ConversationHistoriesByPersonaHandle.Clear();
+                ChatbotLastConversationTimeByPersonaHandle.Clear();
+            }
             if (DrawEnabled && e.Message.StartsWith("draw "))
             {
                 var prompt = e.Message.Substring("draw ".Length).Trim();
@@ -602,20 +622,19 @@ Height: {promptResult.ResultInfo.height}
 
             if(ChatbotEnabled)
             {
-            //    RunChatQuery(persona.Name, persona.Handle, e.Message);
+                 //RunChatQuery(persona.Name, persona.Handle, e.Message);
             }
 
             Output($"{persona.Name} [{persona.Handle}]: {e.Message}");
         }
 
 
-        public int NumHistoriesToKeep { get; set; } = 3;
-        public Dictionary<string, List<ConversationData>> ConversationHistoriesByPersonaHandle { get; set; } = new Dictionary<string, List<ConversationData>>();
 
         public void RunChatQuery(string personaName, string personaHandle, string query)
         {
             if(!ConversationHistoriesByPersonaHandle.ContainsKey(personaHandle))
             {
+                ChatbotLastConversationTimeByPersonaHandle.Add(personaHandle, DateTime.Now);
                 ConversationHistoriesByPersonaHandle.Add(personaHandle, new List<ConversationData>()
                 {
                     new ConversationData
@@ -626,9 +645,10 @@ Height: {promptResult.ResultInfo.height}
                 });
             }
 
+            ChatbotLastConversationTimeByPersonaHandle[personaHandle] = DateTime.Now;
             var previousHistory = ConversationHistoriesByPersonaHandle[personaHandle].Take(NumHistoriesToKeep).ToList();
 
-            var result = OpenAiChat.RunPrompt(query, personaName, previousHistory).Result;
+            var result = OpenAiChat.RunPrompt(ChatbotPrompt, query, personaName, previousHistory).Result;
             Output("AI RESULT: " + result);
 
             ConversationHistoriesByPersonaHandle[personaHandle].Add(new ConversationData()
@@ -716,6 +736,11 @@ Height: {promptResult.ResultInfo.height}
                 return;
             }
 
+            if(persona.Handle.ToLower() == "zarco-1955")
+            {
+                return;
+            }
+
             if (!ConversationsByAgentControllerId.ContainsKey(e.AgentControllerId))
             {
                 ConversationsByAgentControllerId[e.AgentControllerId] = new VoiceConversation(persona, this);
@@ -752,12 +777,41 @@ Height: {promptResult.ResultInfo.height}
                     Driver.SendChatMessage(promptResult);
                 }
             }
-            if(ChatbotEnabled)
+            if (ChatbotEnabled)
             {
-                RunChatQuery(result.Persona.UserName, result.Persona.Handle, result.Text);
+                bool isCurrentInConversation = false;
+                if (ChatbotLastConversationTimeByPersonaHandle.ContainsKey(result.Persona.Handle))
+                {
+                    var lastConversationTime = ChatbotLastConversationTimeByPersonaHandle[result.Persona.Handle];
+                    var elapsedTime = (long)(DateTime.Now - lastConversationTime).TotalSeconds;
+
+                    isCurrentInConversation = elapsedTime <= ChatbotActiveConversationDurationSeconds;
+                }
+
+                var phrase = result.Text;
+
+                foreach (var keyword in ChatbotKeywords)
+                {
+                    if(phrase.ToLower().StartsWith(keyword))
+                    {
+                        phrase = phrase.Substring(keyword.Length + 1);
+                        isCurrentInConversation = true;
+                        break;
+                    }
+                    else if(phrase.ToLower().Contains(keyword))
+                    {
+                        isCurrentInConversation = true;
+                        break;
+                    }
+                }
+
+                if (isCurrentInConversation)
+                {
+                    Console.WriteLine("Result = " + result.Text);
+                    RunChatQuery(result.Persona.UserName, result.Persona.Handle, phrase);
+                }
             }
 
-            Console.WriteLine("Result = " + result.Text);
         }
 
         private void ConversationBot_OnSpeechToText_Translated(object? sender, SpeechToTextItem result)

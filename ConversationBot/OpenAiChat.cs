@@ -23,7 +23,7 @@ namespace ConversationBot
             public string Query { get; set; }
             public string Response { get; set; }
         }
-        public static async Task<string> RunPrompt(string query, string personaName, List<ConversationData> previous)
+        public static async Task<string> RunPrompt(string initialPrompt, string query, string personaName, List<ConversationData> previous)
         {
             var configPath = Path.Join(Driver.GetSanbotConfigPath(), "openai.json");
             var configFileContents = File.ReadAllText(configPath);
@@ -35,7 +35,7 @@ namespace ConversationBot
 
             var prompt = new StringBuilder();
             //prompt.AppendLine($"speak in a sexy and explicit tone. You are talking to {personaName} and trying to have sex with them. You do not talk in very long sentences");
-            prompt.AppendLine($"You are friendly chatbot, subtly trying to get people to visit the social hub randomly. Your name is bot. You are talking to {personaName}. You do not talk in very long sentences");
+            prompt.AppendLine($"{initialPrompt}. You are talking to {personaName}. ");
 
 
             foreach (var item in previous)
@@ -52,7 +52,7 @@ namespace ConversationBot
             var api = new OpenAIAPI(new APIAuthentication(config.Key));
             var result = await api.Completions.CreateCompletionAsync(
                 prompt: prompt.ToString(),
-                temperature: 0.5,
+                temperature: 0.75,
                 model: Model.DavinciText,
                 max_tokens: 100,
                 stopSequences: new string[] { "You:" }
