@@ -38,6 +38,8 @@ using ConversationBot;
 using static ConversationBot.ImageGenerator;
 using static ConversationBot.OpenAiChat;
 using static SanWebApi.Json.ExtractionResponse;
+using NAudio.Codecs;
+using Renci.SshNet.Messages;
 
 namespace EchoBot
 {
@@ -73,20 +75,27 @@ namespace EchoBot
         public bool ChatbotEnabled { get; set; } = false;
         public bool ChatbotSayResult { get; set; } = false;
         public bool ChatbotSpeakResult { get; set; } = true;
-        public string ChatbotPrompt { get; set; } = "You are a bot that is playing sansar and talking in the social hub. Your name is bot. There aren't many people around and you're bored. Do not respond in long sentences";
+      //  public string ChatbotPrompt { get; set; } = "You are a bot that is playing sansar and talking in the social hub. Your name is bot. There aren't many people around and you're bored. Do not respond in long sentences";
+   //     public string ChatbotPrompt { get; set; } = "You are a gamer. You only talk in gamer and twitch memes.";
+        public string ChatbotPrompt { get; set; } = "I want you to act as a bored player that is playing sansar and talking in the social hub. you are trying hard to be cool whenever you speak. Your name is bot. There aren't many people around and you're bored. Do not respond in long sentences";
+       //ds public string ChatbotPrompt { get; set; } = "I want you to act as a normal player that is playing sansar and talking in the social hub. Your name is bot. There aren't many people around and you're bored. Do not respond in long sentences";
+      //  public string ChatbotPrompt { get; set; } = "prompt I want you to be a cringy furry squirrel who dances with pompoms. You say things like \"1 2 3 power pompom\". you always make fun of people's name. You talk in very short sentences. You do not greet people.";
         public int NumHistoriesToKeep { get; set; } = 2;
         public double ChatbotActiveConversationDurationSeconds { get; set; } = 60;
         public Dictionary<string, List<ConversationData>> ConversationHistoriesByPersonaHandle { get; set; } = new Dictionary<string, List<ConversationData>>();
         public Dictionary<string, DateTime> ChatbotLastConversationTimeByPersonaHandle { get; set; } = new Dictionary<string, DateTime>();
+        public bool MustContainKeyword { get; set; } = true;
+        public bool PlayTypingIndicator { get; set; } = true;
+        public bool PlaySoundIndicator { get; set; } = true;
 
         public List<string> ChatbotKeywords { get; set; } = new List<string>()
         {
             "okay google",
             "alexa",
             "robot",
+            "gamer",
             "chatbot"
         };
-
 
         public ConversationBot()
         {
@@ -122,18 +131,21 @@ namespace EchoBot
             Driver.KafkaClient.ClientKafkaMessages.OnRegionChat += ClientKafkaMessages_OnRegionChat;
 
             Driver.RegionClient.ClientRegionMessages.OnClientRuntimeInventoryUpdatedNotification += ClientRegionMessages_OnClientRuntimeInventoryUpdatedNotification;
-            //
-        //    Driver.RegionToJoin = new RegionDetails("nop", "flat");
-          //  Driver.RegionToJoin = new RegionDetails("anuamun", "bamboo-central");
-         //   Driver.RegionToJoin = new RegionDetails("djm3n4c3-9174", "reactive-dance-demo");
+
+            Driver.RegionClient.AnimationComponentMessages.OnCharacterTransform += AnimationComponentMessages_OnCharacterTransform;
+            Driver.RegionToJoin = new RegionDetails("nop", "flat");
+        //  Driver.RegionToJoin = new RegionDetails("anuamun", "bamboo-central");
+        //   Driver.RegionToJoin = new RegionDetails("djm3n4c3-9174", "reactive-dance-demo");
 
             //   Driver.RegionToJoin = new RegionDetails("fayd", "android-s-dream");
             //   //  Driver.RegionToJoin = new RegionDetails("test", "base2");
             // Driver.RegionToJoin = new RegionDetails("sansar-studios", "r-d-starter-inventory-collection");
             // Driver.RegionToJoin = new RegionDetails("sansar-studios", "r-d-starter-inventory-collection");
             //  Driver.RegionToJoin = new RegionDetails("solasnagealai", "once-upon-a-midnight-dream");
-               Driver.RegionToJoin = new RegionDetails("sansar-studios", "social-hub");
+          //     Driver.RegionToJoin = new RegionDetails("sansar-studios", "social-hub");
             //    Driver.RegionToJoin = new RegionDetails("turtle-4332", "turtles-campfire");
+         //  Driver.RegionToJoin = new RegionDetails("wally-sansar", "eapycadvo");
+      //  sansar://sansar.com/experience/wally-sansar/eapycadvo?instance=88faa5bd-0b86-47bb-836b-eec3eaa7989a&event=e8c62e02&target_transform=%280.0%2c%200.0%2c%200.89884615%2c%20-0.4382642%29%2c%20%28-1.9210045%2c%20-4.4623494%2c%201.2324542%2c%200.0%29
 
             Driver.AutomaticallySendClientReady = true;
             Driver.UseVoice = true;
@@ -162,6 +174,52 @@ namespace EchoBot
             ConversationThread.Join();
         }
 
+        private void AnimationComponentMessages_OnCharacterTransform(object? sender, SanProtocol.AnimationComponent.CharacterTransform e)
+        {
+            var persona = Driver.PersonasBySessionId
+                .Where(n => n.Value.AgentComponentId == e.ComponentId)
+                .Select(n => n.Value)
+                .FirstOrDefault();
+            if (persona == null)
+            {
+                return;
+            }
+
+            if (Driver.MyPersonaData == null || persona.SessionId == Driver.MyPersonaData.SessionId)
+            {
+                return;
+            }
+
+            var myPos = Driver.MyPersonaData.Position;
+            var distToTarget = Distance(myPos[0], persona.Position[0], myPos[1], persona.Position[1], myPos[2], persona.Position[2]);
+
+            //if (distToTarget <= 2.0)
+            //{
+            //    if (!ChatbotLastConversationTimeByPersonaHandle.ContainsKey(persona.Handle))
+            //    {
+            //        var isCurrentlyTalkingToSomeone = ChatbotLastConversationTimeByPersonaHandle.Values.Any(n => (DateTime.Now - n).TotalSeconds < 15);
+            //        if(!isCurrentlyTalkingToSomeone)
+            //        {
+            //            if(ChatbotEnabled)
+            //            {
+            //                Console.WriteLine("Activating chat for " + persona.Handle);
+            //                ChatbotLastConversationTimeByPersonaHandle[persona.Handle] = DateTime.Now;
+            //                //Driver.SpeakAzure("Hello " + persona.Handle);
+            //                RunChatQuery(persona.UserName, persona.Handle, "Hello");
+            //            }
+            //        }
+            //    }
+            //}
+            //else if (distToTarget >= 10)
+            //{
+            //    ChatbotLastConversationTimeByPersonaHandle.Remove(persona.Handle);
+            //}
+        }
+
+        public static float Distance(float x1, float x2, float y1, float y2, float z1, float z2)
+        {
+            return (float)Math.Sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2) + (z1 - z2) * (z1 - z2));
+        }
 
         private void ClientRegionMessages_OnClientRuntimeInventoryUpdatedNotification(object? sender, SanProtocol.ClientRegion.ClientRuntimeInventoryUpdatedNotification e)
         {
@@ -422,7 +480,12 @@ Height: {promptResult.ResultInfo.height}
 
                 return;
             }
-            if(e.Message.ToLower().StartsWith("prompt "))
+            if(e.Message.ToLower().StartsWith("speak "))
+            {
+                ChatbotPrompt = e.Message.Substring("speak ".Length).Trim();
+                Driver.SpeakAzure(ChatbotPrompt, true);
+            }
+            if (e.Message.ToLower().StartsWith("prompt "))
             {
                 ChatbotPrompt = e.Message.Substring("prompt ".Length).Trim();
                 ConversationHistoriesByPersonaHandle.Clear();
@@ -628,13 +691,47 @@ Height: {promptResult.ResultInfo.height}
             Output($"{persona.Name} [{persona.Handle}]: {e.Message}");
         }
 
+        public void SetTypingIndicator(bool showIndicator)
+        {
+            Driver.KafkaClient.SendPacket(new SanProtocol.ClientKafka.RegionChat(
+                new SanUUID(),
+                new SanUUID(),
+                "",
+                0,
+                "",
+                0,
+                (byte)(showIndicator ? 1 : 0),
+                0,
+                0
+            ));
+        }
 
+        public void PlayNotification()
+        {
+            var bytes = File.ReadAllBytes("siri.raw");
+            Driver.Speak(bytes);
+        }
 
         public void RunChatQuery(string personaName, string personaHandle, string query)
         {
-            if(!ConversationHistoriesByPersonaHandle.ContainsKey(personaHandle))
+            if(Driver.IsSpeaking)
             {
-                ChatbotLastConversationTimeByPersonaHandle.Add(personaHandle, DateTime.Now);
+                Console.WriteLine($"Ignored request because we are currently speaking: " + query);
+                return;
+            }
+
+            if(PlayTypingIndicator)
+            {
+                SetTypingIndicator(true);
+            }
+            if (PlaySoundIndicator)
+            {
+                PlayNotification();
+            }
+
+            if (!ConversationHistoriesByPersonaHandle.ContainsKey(personaHandle))
+            {
+                ChatbotLastConversationTimeByPersonaHandle.TryAdd(personaHandle, DateTime.Now);
                 ConversationHistoriesByPersonaHandle.Add(personaHandle, new List<ConversationData>()
                 {
                     new ConversationData
@@ -669,7 +766,12 @@ Height: {promptResult.ResultInfo.height}
             }
             if(ChatbotSpeakResult)
             {
-                Driver.SpeakAzure(result);
+                Driver.SpeakAzure(result, true);
+            }
+
+            if(PlayTypingIndicator)
+            {
+                SetTypingIndicator(false);
             }
         }
         public Thread ConversationThread { get; set; }
@@ -736,11 +838,6 @@ Height: {promptResult.ResultInfo.height}
                 return;
             }
 
-            if(persona.Handle.ToLower() == "zarco-1955")
-            {
-                return;
-            }
-
             if (!ConversationsByAgentControllerId.ContainsKey(e.AgentControllerId))
             {
                 ConversationsByAgentControllerId[e.AgentControllerId] = new VoiceConversation(persona, this);
@@ -779,33 +876,37 @@ Height: {promptResult.ResultInfo.height}
             }
             if (ChatbotEnabled)
             {
-                bool isCurrentInConversation = false;
+                var phrase = result.Text.ToLower();
+
+                var isInConversationWithTargetUser = false;
                 if (ChatbotLastConversationTimeByPersonaHandle.ContainsKey(result.Persona.Handle))
                 {
                     var lastConversationTime = ChatbotLastConversationTimeByPersonaHandle[result.Persona.Handle];
                     var elapsedTime = (long)(DateTime.Now - lastConversationTime).TotalSeconds;
 
-                    isCurrentInConversation = elapsedTime <= ChatbotActiveConversationDurationSeconds;
+                    isInConversationWithTargetUser = elapsedTime <= ChatbotActiveConversationDurationSeconds;
                 }
 
-                var phrase = result.Text;
-
+                var phraseContainsKeyword = false;
                 foreach (var keyword in ChatbotKeywords)
                 {
-                    if(phrase.ToLower().StartsWith(keyword))
+                    if (phrase.StartsWith(keyword))
                     {
                         phrase = phrase.Substring(keyword.Length + 1);
-                        isCurrentInConversation = true;
+                        phraseContainsKeyword = true;
                         break;
                     }
-                    else if(phrase.ToLower().Contains(keyword))
+                    else if (phrase.Contains(keyword))
                     {
-                        isCurrentInConversation = true;
+                        phraseContainsKeyword = true;
                         break;
                     }
                 }
 
-                if (isCurrentInConversation)
+                if (
+                    (ChatbotActiveConversationDurationSeconds > 0 && isInConversationWithTargetUser) ||
+                    (MustContainKeyword && phraseContainsKeyword)
+                )
                 {
                     Console.WriteLine("Result = " + result.Text);
                     RunChatQuery(result.Persona.UserName, result.Persona.Handle, phrase);
@@ -882,7 +983,23 @@ Height: {promptResult.ResultInfo.height}
             if (e.ResourceId == this.ItemClousterResourceId)
             {
                 MarkedPosition = e.SpawnPosition;
-                Driver.WarpToPosition(e.SpawnPosition, e.SpawnRotation);
+                Driver.SetPosition(
+                    e.SpawnPosition,
+                    new Quaternion()
+                    {
+                        ModifierFlag = false,
+                        UnknownA = 2,
+                        UnknownB = false,
+                        Values = new List<float>()
+                        {
+                            0,
+                            0,
+                            0,
+                        }
+                    },
+                    0xFFFFFFFFFFFFFFFF, 
+                    true
+                );
                 Driver.SetVoicePosition(e.SpawnPosition, true);
             }
             else if (e.ResourceId == ItemClousterResourceId_Exclamation)

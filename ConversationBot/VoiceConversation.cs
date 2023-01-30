@@ -13,6 +13,7 @@ using System.Threading.Tasks;
 using static EchoBot.ConversationBot;
 using static SanBot.Core.Driver;
 using Newtonsoft.Json;
+using System.Text.Json;
 
 namespace EchoBot
 {
@@ -140,7 +141,7 @@ namespace EchoBot
             LocalWhisper = 1,
             Azure = 2,
         }
-        public SpeechApi SpeechToTextApi { get; set; } = SpeechApi.Azure;
+        public SpeechApi SpeechToTextApi { get; set; } = SpeechApi.LocalWhisper;
 
 
 
@@ -287,9 +288,26 @@ namespace EchoBot
 
         public class WhisperSpeechToTextResult
         {
+            public class Segment
+            {
+                public int id { get; set; }
+                public int seek { get; set; }
+                public float start { get; set; }
+                public float end { get; set; }
+                public string text { get; set; }
+                public int[] tokens { get; set; }
+                public float temperature { get; set; }
+                public float avg_logprob { get; set; }
+                public float compression_ratio { get; set; }
+                public float no_speech_prob { get; set; }
+            }
+
             public bool Success { get; set; }
             public string Text { get; set; }
+            public Segment[] Segments { get; set; }
+            public string Language { get; set; }
         }
+
         public static string? SpeechToTextWhisper(byte[] rawWavBytes)
         {
             using (var client = new HttpClient())
@@ -298,8 +316,13 @@ namespace EchoBot
                 var resultString = result.Content.ReadAsStringAsync().Result;
 
                 var jsonResult = System.Text.Json.JsonSerializer.Deserialize<WhisperSpeechToTextResult>(resultString);
-                if (jsonResult?.Success == true)
+                if (jsonResult?.Success == true && jsonResult.Segments.Length > 0)
                 {
+                    if (jsonResult.Segments[0].no_speech_prob >= 0.35)
+                    {
+                        Console.WriteLine($"Ignored text, no speech prob = {jsonResult.Segments[0].no_speech_prob}: {jsonResult.Text}");
+                        return null;
+                    }
                     return jsonResult.Text.Trim();
                 }
 
