@@ -69,7 +69,7 @@ namespace VoiceBot
             Driver.RegionClient.WorldStateMessages.OnCreateClusterViaDefinition += WorldStateMessages_OnCreateClusterViaDefinition;
 
 
-           Driver.RegionToJoin = new RegionDetails("nop", "rce-poc");
+           Driver.RegionToJoin = new RegionDetails("nop", "flat2");
            // Driver.RegionToJoin = new RegionDetails("terje-9294", "terjesworld");
             Driver.AutomaticallySendClientReady = true;
             Driver.UseVoice = true;

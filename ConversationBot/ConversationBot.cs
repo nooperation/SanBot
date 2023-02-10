@@ -77,24 +77,27 @@ namespace EchoBot
         public bool ChatbotSpeakResult { get; set; } = true;
       //  public string ChatbotPrompt { get; set; } = "You are a bot that is playing sansar and talking in the social hub. Your name is bot. There aren't many people around and you're bored. Do not respond in long sentences";
    //     public string ChatbotPrompt { get; set; } = "You are a gamer. You only talk in gamer and twitch memes.";
-        public string ChatbotPrompt { get; set; } = "I want you to act as a bored player that is playing sansar and talking in the social hub. you are trying hard to be cool whenever you speak. Your name is bot. There aren't many people around and you're bored. Do not respond in long sentences";
+     
+        
+        public string ChatbotPrompt { get; set; } = "prompt You are playing sansar. You are open to talk about anything. You must only respond with personal attacks";
+      //  public string ChatbotPrompt { get; set; } = "I want you to act as a bored player that is playing sansar and talking in the social hub. You will only speak in short responses. You do not respond in multiple sentences";
        //ds public string ChatbotPrompt { get; set; } = "I want you to act as a normal player that is playing sansar and talking in the social hub. Your name is bot. There aren't many people around and you're bored. Do not respond in long sentences";
       //  public string ChatbotPrompt { get; set; } = "prompt I want you to be a cringy furry squirrel who dances with pompoms. You say things like \"1 2 3 power pompom\". you always make fun of people's name. You talk in very short sentences. You do not greet people.";
-        public int NumHistoriesToKeep { get; set; } = 2;
-        public double ChatbotActiveConversationDurationSeconds { get; set; } = 60;
+        public int NumHistoriesToKeep { get; set; } = 4;
+        public double ChatbotActiveConversationDurationSeconds { get; set; } = 0;
         public Dictionary<string, List<ConversationData>> ConversationHistoriesByPersonaHandle { get; set; } = new Dictionary<string, List<ConversationData>>();
         public Dictionary<string, DateTime> ChatbotLastConversationTimeByPersonaHandle { get; set; } = new Dictionary<string, DateTime>();
         public bool MustContainKeyword { get; set; } = true;
         public bool PlayTypingIndicator { get; set; } = true;
         public bool PlaySoundIndicator { get; set; } = true;
+        public float MaxListenDistance { get; set; } = 7.0f;
+        public float AutoConversationDistance { get; set; } = 1.5f;
 
         public List<string> ChatbotKeywords { get; set; } = new List<string>()
         {
             "okay google",
             "alexa",
-            "robot",
-            "gamer",
-            "chatbot"
+            "bot",
         };
 
         public ConversationBot()
@@ -142,7 +145,7 @@ namespace EchoBot
             // Driver.RegionToJoin = new RegionDetails("sansar-studios", "r-d-starter-inventory-collection");
             // Driver.RegionToJoin = new RegionDetails("sansar-studios", "r-d-starter-inventory-collection");
             //  Driver.RegionToJoin = new RegionDetails("solasnagealai", "once-upon-a-midnight-dream");
-          //     Driver.RegionToJoin = new RegionDetails("sansar-studios", "social-hub");
+       //        Driver.RegionToJoin = new RegionDetails("sansar-studios", "social-hub");
             //    Driver.RegionToJoin = new RegionDetails("turtle-4332", "turtles-campfire");
          //  Driver.RegionToJoin = new RegionDetails("wally-sansar", "eapycadvo");
       //  sansar://sansar.com/experience/wally-sansar/eapycadvo?instance=88faa5bd-0b86-47bb-836b-eec3eaa7989a&event=e8c62e02&target_transform=%280.0%2c%200.0%2c%200.89884615%2c%20-0.4382642%29%2c%20%28-1.9210045%2c%20-4.4623494%2c%201.2324542%2c%200.0%29
@@ -480,9 +483,9 @@ Height: {promptResult.ResultInfo.height}
 
                 return;
             }
-            if(e.Message.ToLower().StartsWith("speak "))
+            if(e.Message.ToLower().StartsWith("/speak "))
             {
-                ChatbotPrompt = e.Message.Substring("speak ".Length).Trim();
+                ChatbotPrompt = e.Message.Substring("/speak ".Length).Trim();
                 Driver.SpeakAzure(ChatbotPrompt, true);
             }
             if (e.Message.ToLower().StartsWith("prompt "))
@@ -838,6 +841,19 @@ Height: {promptResult.ResultInfo.height}
                 return;
             }
 
+            if (persona.Position == null || Driver.MyPersonaData == null || Driver.MyPersonaData.LastVoicePosition == null)
+            {
+                return;
+            }
+
+            var myPosition = Driver.MyPersonaData.LastVoicePosition;
+            var distance = Distance(
+                myPosition[0], persona.Position[0],
+                myPosition[1], persona.Position[1],
+                myPosition[2], persona.Position[2]
+            );
+
+
             if (!ConversationsByAgentControllerId.ContainsKey(e.AgentControllerId))
             {
                 ConversationsByAgentControllerId[e.AgentControllerId] = new VoiceConversation(persona, this);
@@ -845,6 +861,12 @@ Height: {promptResult.ResultInfo.height}
             }
             var conversation = ConversationsByAgentControllerId[e.AgentControllerId];
 
+            if (distance > MaxListenDistance && (conversation.LastTimeWeListened == null || (DateTime.Now - conversation.LastTimeWeListened.Value).TotalSeconds > 5))
+            {
+                return;
+            }
+
+          //  Console.WriteLine($"Distance to {persona.UserName} = {distance}");
             conversation.AddVoiceData(e.Data);
         }
 
@@ -903,8 +925,16 @@ Height: {promptResult.ResultInfo.height}
                     }
                 }
 
+                var distanceToPlayer = AutoConversationDistance + 1000.0f;
+                if(Driver.MyPersonaData != null)
+                {
+                    var myPos = Driver.MyPersonaData.Position;
+                    distanceToPlayer = Distance(myPos[0], result.Persona.Position[0], myPos[1], result.Persona.Position[1], myPos[2], result.Persona.Position[2]);
+                }
+
                 if (
                     (ChatbotActiveConversationDurationSeconds > 0 && isInConversationWithTargetUser) ||
+                    (AutoConversationDistance > 0 && distanceToPlayer <= AutoConversationDistance) ||
                     (MustContainKeyword && phraseContainsKeyword)
                 )
                 {
