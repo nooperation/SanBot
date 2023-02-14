@@ -94,7 +94,7 @@ namespace EchoBot
         {
             if(!IsInitialized)
             {
-                InitLocation();
+                SetVoicePosition(-1, 93, 12);
                 IsInitialized = true;
             }
 
@@ -108,17 +108,17 @@ namespace EchoBot
             }
         }
 
-        private void InitLocation()
+        private void SetVoicePosition(float x, float y, float z)
         {
-            Console.WriteLine("Send init");
+            Console.WriteLine($"SetVoicePosition: {x}, {y}, {z}");
             Driver.VoiceClient.SendPacket(new SanProtocol.ClientVoice.LocalAudioPosition(
                 Driver.VoiceClient.CurrentSequence++,
                 Driver.VoiceClient.InstanceId,
                 new List<float>()
                 {
-                    -1,
-                    93,
-                    12,
+                    x,
+                    y,
+                    z,
                 },
                 0
             ));
@@ -139,11 +139,25 @@ namespace EchoBot
 
             if(e.Message == "init")
             {
-                InitLocation();
+                SetVoicePosition(-1, 93, 12);
             }
             if (e.Message.StartsWith("say"))
             {
                 var message = e.Message[3..].Trim();
+                this.Driver.SendChatMessage(message);
+            }
+            if (e.Message.StartsWith("goto "))
+            {
+                var message = e.Message[4..].Trim();
+                var parts = message.Split(' ');
+                if(parts.Length == 3)
+                {
+                    var x = float.Parse(parts[0]);
+                    var y = float.Parse(parts[1]);
+                    var z = float.Parse(parts[2]);
+
+                    SetVoicePosition(x, y, z);
+                }
                 this.Driver.SendChatMessage(message);
             }
         }

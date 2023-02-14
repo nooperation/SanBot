@@ -295,8 +295,6 @@ namespace EchoBot
             var eventsToRemove = events.Where(n => n.WaveOut.PlaybackState == PlaybackState.Stopped).ToList();
             foreach (var item in eventsToRemove)
             {
-                Console.WriteLine("Removing stopped sound");
-
                 item.WaveOut.Stop();
                 item.WaveOut.Dispose();
                 item.WaveStream.Dispose();
