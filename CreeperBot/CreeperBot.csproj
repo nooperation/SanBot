@@ -8,13 +8,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Concentus" Version="1.1.7" />
-    <PackageReference Include="Microsoft.CognitiveServices.Speech" Version="1.25.0" />
-    <PackageReference Include="NAudio" Version="2.1.0" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\Depends\LibSanBag\LibSanBag\LibSanBag.csproj" />
     <ProjectReference Include="..\SanBot.Core\SanBot.Core\SanBot.Core.csproj" />
     <ProjectReference Include="..\Sanbot.Database\SanBot.Database.csproj" />
     <ProjectReference Include="..\SanProtocol\SanProtocol\SanProtocol.csproj" />

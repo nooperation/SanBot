@@ -1,0 +1,9 @@
+[submodule "SanBot.Core"]
+	path = SanBot.Core
+	url = https://github.com/nooperation/SanBot.Core
+[submodule "SanProtocol"]
+	path = SanProtocol
+	url = https://github.com/nooperation/SanProtocol
+[submodule "SanWebApi"]
+	path = SanWebApi
+	url = https://github.com/nooperation/SanWebApi

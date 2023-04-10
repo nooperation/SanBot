@@ -7,7 +7,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Depends\LibSanBag\LibSanBag\LibSanBag.csproj" />
     <ProjectReference Include="..\SanBot.Core\SanBot.Core\SanBot.Core.csproj" />
     <ProjectReference Include="..\SanWebApi\SanWebApi\SanWebApi.csproj" />
   </ItemGroup>

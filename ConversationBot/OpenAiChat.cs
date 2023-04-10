@@ -53,7 +53,7 @@ namespace ConversationBot
             var result = await api.Completions.CreateCompletionAsync(
                 prompt: prompt.ToString(),
                 temperature: 0.75,
-                model: Model.DavinciText,
+                model: OpenAI_API.Models.Model.DavinciText,
                 max_tokens: 100,
                 stopSequences: new string[] { "You:" }
             );

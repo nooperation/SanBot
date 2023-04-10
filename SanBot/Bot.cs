@@ -10,10 +10,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using SanProtocol;
 using SanBot.Core;
-using static SanBot.Database.Services.PersonaService;
-using Google.Cloud.Translate.V3;
-using Google.Api.Gax.ResourceNames;
-using System.Web;
 
 namespace SanBot
 {
@@ -75,7 +71,7 @@ namespace SanBot
                 Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                 "SanBot"
             );
-            var configPath = Path.Join(sanbotPath, ".config.json");
+            var configPath = Path.Join(sanbotPath, "VoiceBot.config.json");
 
             try
             {

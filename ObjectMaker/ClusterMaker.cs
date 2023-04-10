@@ -58,6 +58,7 @@ namespace ObjectMaker
         }
         public static GenerateNewClusterResult GenerateNewCluster(string referenceClusterDefPayloadPath, string referenceClusterDefManifestPath, string clusterId, string newMaterialId, string newTextureResourceId)
         {
+            /*
             var oodle = LibSanBag.ResourceUtils.LibOodleBase.CreateLibOodle(new LibSanBag.Providers.FileProvider());
 
             // Decompress resource
@@ -76,6 +77,13 @@ namespace ObjectMaker
             {
                 ClusterBytes = newResourceBytes,
                 ManifestBytes = newManifestBytes,
+                Id = clusterId
+            };
+            */
+            return new GenerateNewClusterResult()
+            {
+                ClusterBytes = new byte[] { },
+                ManifestBytes = new byte[] { },
                 Id = clusterId
             };
         }
@@ -99,6 +107,7 @@ namespace ObjectMaker
             }
         }
 
+        /*
         public static byte[] UpdateClusterMaterial(byte[] decompressedClusterDefinition, string newMaterialId, LibSanBag.ResourceUtils.LibOodleBase oodle)
         {
             // Update material id
@@ -130,5 +139,6 @@ namespace ObjectMaker
                 return ms.ToArray();
             }
         }
+        */
     }
 }
