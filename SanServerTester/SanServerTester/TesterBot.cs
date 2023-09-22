@@ -74,14 +74,12 @@ namespace TesterBot
 
             try
             {
-                var configFileContents = File.ReadAllText(configPath);
-                config = Newtonsoft.Json.JsonConvert.DeserializeObject<ConfigFile>(configFileContents);
+                config = ConfigFile.FromJsonFile(configPath);
             }
             catch (Exception ex)
             {
                 throw new Exception("Missing or invalid config.json", ex);
             }
-
 
             try
             {
@@ -400,7 +398,7 @@ namespace TesterBot
             PreviousMessages.Add(message);
 
 
-            //var audioCallbackHandler = new AudioStreamHandler(this);
+            //var audioCallbackHandler = new AzureAudioStreamHandler(this);
             // audioCallbackHandler.Write(File.ReadAllBytes(@test2.pcm"));
 
             var speechConfig = SpeechConfig.FromSubscription(AzureConfig.key1, AzureConfig.region);

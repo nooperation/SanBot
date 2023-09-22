@@ -14,6 +14,7 @@ using static EchoBot.ConversationBot;
 using static SanBot.Core.Driver;
 using Newtonsoft.Json;
 using System.Text.Json;
+using static SanBot.Core.AzureApi;
 
 namespace EchoBot
 {
@@ -210,7 +211,7 @@ namespace EchoBot
             var azureConfigPath = Path.Join(Driver.GetSanbotConfigPath(), "azure.json");
             var configFileContents = File.ReadAllText(azureConfigPath);
             var azureConfig = System.Text.Json.JsonSerializer.Deserialize<AzureConfigPayload>(configFileContents);
-            if (azureConfig == null || azureConfig.keyTranslator.Length == 0 || azureConfig.region.Length == 0)
+            if (azureConfig == null || azureConfig.KeyTranslator.Length == 0 || azureConfig.Region.Length == 0)
             {
                 throw new Exception("Invalid azure config");
             }
@@ -227,9 +228,9 @@ namespace EchoBot
                 request.Method = HttpMethod.Post;
                 request.RequestUri = new Uri(endpoint + route);
                 request.Content = new StringContent(requestBody, Encoding.UTF8, "application/json");
-                request.Headers.Add("Ocp-Apim-Subscription-Key", azureConfig.keyTranslator);
+                request.Headers.Add("Ocp-Apim-Subscription-Key", azureConfig.KeyTranslator);
                 // location required if you're using a multi-service or regional (not global) resource.
-                request.Headers.Add("Ocp-Apim-Subscription-Region", azureConfig.region);
+                request.Headers.Add("Ocp-Apim-Subscription-Region", azureConfig.Region);
 
                 // Send the request and get response.
                 HttpResponseMessage response = client.SendAsync(request).Result;

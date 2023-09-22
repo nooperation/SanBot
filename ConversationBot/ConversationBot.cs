@@ -40,10 +40,12 @@ using static ConversationBot.OpenAiChat;
 using static SanWebApi.Json.ExtractionResponse;
 using NAudio.Codecs;
 using Renci.SshNet.Messages;
+using SanBot.BaseBot;
+using static SanProtocol.Messages;
 
 namespace EchoBot
 {
-    public class ConversationBot
+    public class ConversationBot : SimpleBot
     {
         public Driver Driver { get; set; }
 
@@ -111,8 +113,7 @@ namespace EchoBot
 
             try
             {
-                var configFileContents = File.ReadAllText(configPath);
-                config = Newtonsoft.Json.JsonConvert.DeserializeObject<ConfigFile>(configFileContents);
+                config = ConfigFile.FromJsonFile(configPath);
             }
             catch (Exception ex)
             {
@@ -122,20 +123,6 @@ namespace EchoBot
             Driver = new Driver();
             Driver.OnOutput += Driver_OnOutput;
 
-            Driver.RegionClient.ClientRegionMessages.OnAddUser += ClientRegionMessages_OnAddUser;
-            Driver.RegionClient.ClientRegionMessages.OnRemoveUser += ClientRegionMessages_OnRemoveUser;
-            Driver.RegionClient.ClientRegionMessages.OnSetAgentController += ClientRegionMessages_OnSetAgentController;
-
-            Driver.RegionClient.WorldStateMessages.OnCreateClusterViaDefinition += WorldStateMessages_OnCreateClusterViaDefinition;
-            Driver.RegionClient.WorldStateMessages.OnDestroyCluster += WorldStateMessages_OnDestroyCluster;
-
-            Driver.VoiceClient.ClientVoiceMessages.OnLocalAudioData += ClientVoiceMessages_OnLocalAudioData;
-
-            Driver.KafkaClient.ClientKafkaMessages.OnRegionChat += ClientKafkaMessages_OnRegionChat;
-
-            Driver.RegionClient.ClientRegionMessages.OnClientRuntimeInventoryUpdatedNotification += ClientRegionMessages_OnClientRuntimeInventoryUpdatedNotification;
-
-            Driver.RegionClient.AnimationComponentMessages.OnCharacterTransform += AnimationComponentMessages_OnCharacterTransform;
             Driver.RegionToJoin = new RegionDetails("nop", "flat");
         //  Driver.RegionToJoin = new RegionDetails("anuamun", "bamboo-central");
         //   Driver.RegionToJoin = new RegionDetails("djm3n4c3-9174", "reactive-dance-demo");
@@ -152,7 +139,7 @@ namespace EchoBot
 
             Driver.AutomaticallySendClientReady = true;
             Driver.UseVoice = true;
-            Driver.StartAsync(config).Wait();
+            Driver.StartAsync(config.Username, config.Password).Wait();
 
             Stopwatch watch = new Stopwatch();
 
@@ -176,8 +163,44 @@ namespace EchoBot
             _IsConversationThreadRunning = false;
             ConversationThread.Join();
         }
+        
+        public override void OnPacket(IPacket packet)
+        {
+            base.OnPacket(packet);
 
-        private void AnimationComponentMessages_OnCharacterTransform(object? sender, SanProtocol.AnimationComponent.CharacterTransform e)
+            switch (packet.MessageId)
+            {
+                case ClientRegionMessages.AddUser:
+                    ClientRegionMessages_OnAddUser((SanProtocol.ClientRegion.AddUser)packet);
+                    break;
+                case ClientRegionMessages.RemoveUser:
+                    ClientRegionMessages_OnRemoveUser((SanProtocol.ClientRegion.RemoveUser)packet);
+                    break;
+                case ClientRegionMessages.SetAgentController:
+                    ClientRegionMessages_OnSetAgentController((SanProtocol.ClientRegion.SetAgentController)packet);
+                    break;
+                case WorldStateMessages.CreateClusterViaDefinition:
+                    WorldStateMessages_OnCreateClusterViaDefinition((SanProtocol.WorldState.CreateClusterViaDefinition)packet);
+                    break;
+                case WorldStateMessages.DestroyCluster:
+                    WorldStateMessages_OnDestroyCluster((SanProtocol.WorldState.DestroyCluster)packet);
+                    break;
+                case ClientVoiceMessages.LocalAudioData:
+                    ClientVoiceMessages_OnLocalAudioData((SanProtocol.ClientVoice.LocalAudioData)packet);
+                    break;
+                case ClientKafkaMessages.RegionChat:
+                    ClientKafkaMessages_OnRegionChat((SanProtocol.ClientKafka.RegionChat)packet);
+                    break;
+                case ClientRegionMessages.ClientRuntimeInventoryUpdatedNotification:
+                    ClientRegionMessages_OnClientRuntimeInventoryUpdatedNotification((SanProtocol.ClientRegion.ClientRuntimeInventoryUpdatedNotification)packet);
+                    break;
+                case AnimationComponentMessages.CharacterTransform:
+                    AnimationComponentMessages_OnCharacterTransform((SanProtocol.AnimationComponent.CharacterTransform)packet);
+                    break;
+            }
+        }
+
+        private void AnimationComponentMessages_OnCharacterTransform(SanProtocol.AnimationComponent.CharacterTransform e)
         {
             var persona = Driver.PersonasBySessionId
                 .Where(n => n.Value.AgentComponentId == e.ComponentId)
@@ -224,7 +247,7 @@ namespace EchoBot
             return (float)Math.Sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2) + (z1 - z2) * (z1 - z2));
         }
 
-        private void ClientRegionMessages_OnClientRuntimeInventoryUpdatedNotification(object? sender, SanProtocol.ClientRegion.ClientRuntimeInventoryUpdatedNotification e)
+        private void ClientRegionMessages_OnClientRuntimeInventoryUpdatedNotification(SanProtocol.ClientRegion.ClientRuntimeInventoryUpdatedNotification e)
         {
             Console.WriteLine("ClientRegionMessages_OnClientRuntimeInventoryUpdatedNotification: " + e.Message);
         }
@@ -348,7 +371,7 @@ Height: {promptResult.ResultInfo.height}
 
         private List<string> LastMessages = new List<string>();
 
-        private void ClientKafkaMessages_OnRegionChat(object? sender, RegionChat e)
+        private void ClientKafkaMessages_OnRegionChat(RegionChat e)
         {
             var persona = Driver.ResolvePersonaId(e.FromPersonaId).Result;
             if (e.Message == "")
@@ -793,7 +816,7 @@ Height: {promptResult.ResultInfo.height}
             }
         }
 
-        private void WorldStateMessages_OnDestroyCluster(object? sender, SanProtocol.WorldState.DestroyCluster e)
+        private void WorldStateMessages_OnDestroyCluster(SanProtocol.WorldState.DestroyCluster e)
         {
             TargetPersonas.RemoveAll(n => n.ClusterId == e.ClusterId);
         }
@@ -818,7 +841,7 @@ Height: {promptResult.ResultInfo.height}
             }
         }
 
-        private void ClientVoiceMessages_OnLocalAudioData(object? sender, SanProtocol.ClientVoice.LocalAudioData e)
+        private void ClientVoiceMessages_OnLocalAudioData(SanProtocol.ClientVoice.LocalAudioData e)
         {
             // MAIN THREAD
 
@@ -980,7 +1003,7 @@ Height: {promptResult.ResultInfo.height}
             Console.WriteLine("Result = " + result.Text);
         }
 
-        private void ClientRegionMessages_OnSetAgentController(object? sender, SanProtocol.ClientRegion.SetAgentController e)
+        private void ClientRegionMessages_OnSetAgentController(SanProtocol.ClientRegion.SetAgentController e)
         {
             Output("Sending to voice server: LocalAudioStreamState(1)...");
             Driver.VoiceClient.SendPacket(new SanProtocol.ClientVoice.LocalAudioStreamState(Driver.VoiceClient.InstanceId, 0, 1, 1));
@@ -1008,7 +1031,7 @@ Height: {promptResult.ResultInfo.height}
         public bool HaveIBeenCreatedYet { get; set; } = false;
         public Dictionary<uint, List<float>> InitialClusterPositions { get; set; } = new Dictionary<uint, List<float>>();
 
-        private void WorldStateMessages_OnCreateClusterViaDefinition(object? sender, SanProtocol.WorldState.CreateClusterViaDefinition e)
+        private void WorldStateMessages_OnCreateClusterViaDefinition(SanProtocol.WorldState.CreateClusterViaDefinition e)
         {
             if (e.ResourceId == this.ItemClousterResourceId)
             {
@@ -1065,12 +1088,12 @@ Height: {promptResult.ResultInfo.height}
             Console.Write(finalOutput);
         }
 
-        private void ClientRegionMessages_OnRemoveUser(object? sender, SanProtocol.ClientRegion.RemoveUser e)
+        private void ClientRegionMessages_OnRemoveUser(SanProtocol.ClientRegion.RemoveUser e)
         {
             TargetPersonas.RemoveAll(n => n.SessionId == e.SessionId);
         }
 
-        private void ClientRegionMessages_OnAddUser(object? sender, SanProtocol.ClientRegion.AddUser e)
+        private void ClientRegionMessages_OnAddUser(SanProtocol.ClientRegion.AddUser e)
         {
             var persona = Driver.PersonasBySessionId
                 .Where(n => n.Key == e.SessionId)

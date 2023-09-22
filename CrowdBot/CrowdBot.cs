@@ -14,10 +14,12 @@ using SanBot.Core.MessageHandlers;
 using System.Diagnostics;
 using SanProtocol.WorldState;
 using System.Net;
+using SanBot.BaseBot;
+using static SanProtocol.Messages;
 
 namespace CrowdBot
 {
-    public class CrowdBot
+    public class CrowdBot : SimpleBot
     {
         public event EventHandler? OnRequestRestartBot;
         public event EventHandler? OnRequestAddBot;
@@ -62,26 +64,6 @@ namespace CrowdBot
 
             Driver.OnOutput += Driver_OnOutput;
 
-            Driver.KafkaClient.ClientKafkaMessages.OnRegionChat += ClientKafkaMessages_OnRegionChat;
-
-            Driver.RegionClient.ClientRegionMessages.OnSetAgentController += ClientRegionMessages_OnSetAgentController;
-
-            Driver.RegionClient.AnimationComponentMessages.OnCharacterTransform += AnimationComponentMessages_OnCharacterTransform;
-            Driver.RegionClient.AnimationComponentMessages.OnCharacterTransformPersistent += AnimationComponentMessages_OnCharacterTransformPersistent;
-            Driver.RegionClient.AnimationComponentMessages.OnBehaviorStateUpdate += AnimationComponentMessages_OnBehaviorStateUpdate;
-            Driver.RegionClient.AnimationComponentMessages.OnPlayAnimation += AnimationComponentMessages_OnPlayAnimation;
-
-            Driver.RegionClient.AgentControllerMessages.OnCharacterControllerInput += AgentControllerMessages_OnCharacterControllerInput;
-            Driver.RegionClient.AgentControllerMessages.OnCharacterControllerInputReliable += AgentControllerMessages_OnCharacterControllerInputReliable;
-
-            Driver.RegionClient.AgentControllerMessages.OnCharacterIKPose += AgentControllerMessages_OnCharacterIKPose;
-            Driver.RegionClient.AgentControllerMessages.OnCharacterIKPoseDelta += AgentControllerMessages_OnCharacterIKPoseDelta;
-            Driver.RegionClient.AgentControllerMessages.OnCharacterControlPointInput += AgentControllerMessages_OnCharacterControlPointInput;
-            Driver.RegionClient.AgentControllerMessages.OnCharacterControlPointInputReliable += AgentControllerMessages_OnCharacterControlPointInputReliable;
-
-            Driver.RegionClient.WorldStateMessages.OnCreateClusterViaDefinition += WorldStateMessages_OnCreateClusterViaDefinition;
-            Driver.RegionClient.WorldStateMessages.OnDestroyCluster += WorldStateMessages_OnDestroyCluster;
-
            /// Driver.RegionToJoin = new RegionDetails("nop", "flat2");
            // Driver.RegionToJoin = new RegionDetails("nop", "flat");
           //  Driver.RegionToJoin = new RegionDetails("sansar-studios", "club-sansar");
@@ -89,6 +71,57 @@ namespace CrowdBot
 
             Driver.AutomaticallySendClientReady = true;
             Driver.UseVoice = false;
+        }
+
+        public override void OnPacket(IPacket packet)
+        {
+            base.OnPacket(packet);
+
+            switch (packet.MessageId)
+            {
+                case ClientKafkaMessages.RegionChat:
+                    ClientKafkaMessages_OnRegionChat((SanProtocol.ClientKafka.RegionChat)packet);
+                    break;
+                case ClientRegionMessages.SetAgentController:
+                    ClientRegionMessages_OnSetAgentController((SanProtocol.ClientRegion.SetAgentController)packet);
+                    break;
+                case AnimationComponentMessages.CharacterTransform:
+                    AnimationComponentMessages_OnCharacterTransform((SanProtocol.AnimationComponent.CharacterTransform)packet);
+                    break;
+                case AnimationComponentMessages.CharacterTransformPersistent:
+                    AnimationComponentMessages_OnCharacterTransformPersistent((SanProtocol.AnimationComponent.CharacterTransformPersistent)packet);
+                    break;
+                case AnimationComponentMessages.BehaviorStateUpdate:
+                    AnimationComponentMessages_OnBehaviorStateUpdate((SanProtocol.AnimationComponent.BehaviorStateUpdate)packet);
+                    break;
+                case AnimationComponentMessages.PlayAnimation:
+                    AnimationComponentMessages_OnPlayAnimation((SanProtocol.AnimationComponent.PlayAnimation)packet);
+                    break;
+                case AgentControllerMessages.CharacterControllerInput:
+                    AgentControllerMessages_OnCharacterControllerInput((SanProtocol.AgentController.CharacterControllerInput)packet);
+                    break;
+                case AgentControllerMessages.CharacterControllerInputReliable:
+                    AgentControllerMessages_OnCharacterControllerInputReliable((SanProtocol.AgentController.CharacterControllerInputReliable)packet);
+                    break;
+                case AgentControllerMessages.CharacterIKPose:
+                    AgentControllerMessages_OnCharacterIKPose((SanProtocol.AgentController.CharacterIKPose)packet);
+                    break;
+                case AgentControllerMessages.CharacterIKPoseDelta:
+                    AgentControllerMessages_OnCharacterIKPoseDelta((SanProtocol.AgentController.CharacterIKPoseDelta)packet);
+                    break;
+                case AgentControllerMessages.CharacterControlPointInput:
+                    AgentControllerMessages_OnCharacterControlPointInput((SanProtocol.AgentController.CharacterControlPointInput)packet);
+                    break;
+                case AgentControllerMessages.CharacterControlPointInputReliable:
+                    AgentControllerMessages_OnCharacterControlPointInputReliable((SanProtocol.AgentController.CharacterControlPointInputReliable)packet);
+                    break;
+                case WorldStateMessages.CreateClusterViaDefinition:
+                    WorldStateMessages_OnCreateClusterViaDefinition((SanProtocol.WorldState.CreateClusterViaDefinition)packet);
+                    break;
+                case WorldStateMessages.DestroyCluster:
+                    WorldStateMessages_OnDestroyCluster((SanProtocol.WorldState.DestroyCluster)packet);
+                    break;
+            }
         }
 
         public void Start(ConfigFile config)
@@ -114,7 +147,7 @@ namespace CrowdBot
         }
 
         public SanUUID ItemClousterResourceId { get; set; } = new SanUUID("04c2d5a7ea3d6fb47af66669cfdc9f9a"); // heart reaction thing
-        private void WorldStateMessages_OnCreateClusterViaDefinition(object? sender, SanProtocol.WorldState.CreateClusterViaDefinition e)
+        private void WorldStateMessages_OnCreateClusterViaDefinition(SanProtocol.WorldState.CreateClusterViaDefinition e)
         {
             if (e.ResourceId == this.ItemClousterResourceId)
             {
@@ -123,7 +156,7 @@ namespace CrowdBot
             }
         }
 
-        private void AgentControllerMessages_OnCharacterControlPointInputReliable(object? sender, SanProtocol.AgentController.CharacterControlPointInputReliable e)
+        private void AgentControllerMessages_OnCharacterControlPointInputReliable(SanProtocol.AgentController.CharacterControlPointInputReliable e)
         {
             if(Driver.MyPersonaData == null || Driver.MyPersonaData.AgentControllerId == null)
             {
@@ -157,7 +190,7 @@ namespace CrowdBot
             }
         }
 
-        private void AgentControllerMessages_OnCharacterControlPointInput(object? sender, SanProtocol.AgentController.CharacterControlPointInput e)
+        private void AgentControllerMessages_OnCharacterControlPointInput(SanProtocol.AgentController.CharacterControlPointInput e)
         {
             if (Driver.MyPersonaData == null || Driver.MyPersonaData.AgentControllerId == null)
             {
@@ -191,7 +224,7 @@ namespace CrowdBot
             }
         }
 
-        private void AgentControllerMessages_OnCharacterIKPoseDelta(object? sender, SanProtocol.AgentController.CharacterIKPoseDelta e)
+        private void AgentControllerMessages_OnCharacterIKPoseDelta(SanProtocol.AgentController.CharacterIKPoseDelta e)
         {
             if (Driver.MyPersonaData == null || Driver.MyPersonaData.AgentControllerId == null)
             {
@@ -209,7 +242,7 @@ namespace CrowdBot
             }
         }
 
-        private void AgentControllerMessages_OnCharacterIKPose(object? sender, SanProtocol.AgentController.CharacterIKPose e)
+        private void AgentControllerMessages_OnCharacterIKPose(SanProtocol.AgentController.CharacterIKPose e)
         {
             if (Driver.MyPersonaData == null || Driver.MyPersonaData.AgentControllerId == null)
             {
@@ -227,7 +260,7 @@ namespace CrowdBot
             }
         }
 
-        private void AnimationComponentMessages_OnPlayAnimation(object? sender, SanProtocol.AnimationComponent.PlayAnimation e)
+        private void AnimationComponentMessages_OnPlayAnimation(SanProtocol.AnimationComponent.PlayAnimation e)
         {
             if (Driver.MyPersonaData == null || Driver.MyPersonaData.AgentControllerId == null || Driver.MyPersonaData.AgentComponentId == null)
             {
@@ -257,7 +290,7 @@ namespace CrowdBot
             SavedAnimation = animationPacket;
         }
 
-        private void AnimationComponentMessages_OnBehaviorStateUpdate(object? sender, SanProtocol.AnimationComponent.BehaviorStateUpdate e)
+        private void AnimationComponentMessages_OnBehaviorStateUpdate(SanProtocol.AnimationComponent.BehaviorStateUpdate e)
         {
             if (Driver.MyPersonaData == null || Driver.MyPersonaData.AgentControllerId == null || Driver.MyPersonaData.AgentComponentId == null)
             {
@@ -288,7 +321,7 @@ namespace CrowdBot
             ));
         }
 
-        private void AgentControllerMessages_OnCharacterControllerInputReliable(object? sender, SanProtocol.AgentController.CharacterControllerInputReliable e)
+        private void AgentControllerMessages_OnCharacterControllerInputReliable(SanProtocol.AgentController.CharacterControllerInputReliable e)
         {
             if (Driver.MyPersonaData == null || Driver.MyPersonaData.AgentControllerId == null)
             {
@@ -327,7 +360,7 @@ namespace CrowdBot
             SavedControllerInput = controllerInputPacket;
         }
 
-        private void AgentControllerMessages_OnCharacterControllerInput(object? sender, SanProtocol.AgentController.CharacterControllerInput e)
+        private void AgentControllerMessages_OnCharacterControllerInput(SanProtocol.AgentController.CharacterControllerInput e)
         {
             if (Driver.MyPersonaData == null || Driver.MyPersonaData.AgentControllerId == null)
             {
@@ -363,7 +396,7 @@ namespace CrowdBot
             ));
         }
 
-        private void WorldStateMessages_OnDestroyCluster(object? sender, SanProtocol.WorldState.DestroyCluster e)
+        private void WorldStateMessages_OnDestroyCluster(SanProtocol.WorldState.DestroyCluster e)
         {
             var persona = TargetPersonas
                 .Where(n => n.ClusterId == e.ClusterId)
@@ -376,7 +409,7 @@ namespace CrowdBot
             TargetPersonas.RemoveWhere(n => n.ClusterId == e.ClusterId);
         }
 
-        private void AnimationComponentMessages_OnCharacterTransformPersistent(object? sender, SanProtocol.AnimationComponent.CharacterTransformPersistent e)
+        private void AnimationComponentMessages_OnCharacterTransformPersistent(SanProtocol.AnimationComponent.CharacterTransformPersistent e)
         {
             var persona = TargetPersonas
                 .Where(n => n.AgentComponentId == e.ComponentId)
@@ -401,7 +434,7 @@ namespace CrowdBot
         Dictionary<ulong, bool> spokenToAvatar = new Dictionary<ulong, bool>();
 
         Random rand = new Random();
-        private void AnimationComponentMessages_OnCharacterTransform(object? sender, SanProtocol.AnimationComponent.CharacterTransform e)
+        private void AnimationComponentMessages_OnCharacterTransform(SanProtocol.AnimationComponent.CharacterTransform e)
         {
             var persona = Driver.PersonasBySessionId
                 .Where(n => n.Value.AgentComponentId == e.ComponentId)
@@ -456,7 +489,7 @@ namespace CrowdBot
             }
         }
 
-        private void ClientRegionMessages_OnSetAgentController(object? sender, SanProtocol.ClientRegion.SetAgentController e)
+        private void ClientRegionMessages_OnSetAgentController(SanProtocol.ClientRegion.SetAgentController e)
         {
             /*
             if (Driver.MyPersonaData == null || Driver.MyPersonaData.AgentControllerId == null || Driver.MyPersonaData.AgentComponentId == null)
@@ -488,7 +521,7 @@ namespace CrowdBot
             */
         }
 
-        private void ClientKafkaMessages_OnRegionChat(object? sender, RegionChat e)
+        private void ClientKafkaMessages_OnRegionChat(RegionChat e)
         {
             if (e.Message == "")
             {

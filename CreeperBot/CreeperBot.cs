@@ -21,10 +21,12 @@ using Concentus.Structs;
 using System.Collections.Concurrent;
 using SanProtocol.WorldState;
 using static EchoBot.VoiceConversation;
+using SanBot.BaseBot;
+using static SanProtocol.Messages;
 
 namespace EchoBot
 {
-    public class CreeperBot
+    public class CreeperBot : SimpleBot
     {
         public Driver Driver { get; set; }
 
@@ -39,8 +41,7 @@ namespace EchoBot
 
             try
             {
-                var configFileContents = File.ReadAllText(configPath);
-                config = Newtonsoft.Json.JsonConvert.DeserializeObject<ConfigFile>(configFileContents);
+                config = ConfigFile.FromJsonFile(configPath);
             }
             catch (Exception ex)
             {
@@ -50,13 +51,6 @@ namespace EchoBot
 
             Driver = new Driver();
             Driver.OnOutput += Driver_OnOutput;
-
-            Driver.KafkaClient.ClientKafkaMessages.OnRegionChat += ClientKafkaMessages_OnRegionChat;
-            Driver.KafkaClient.ClientKafkaMessages.OnRelationshipTable += ClientKafkaMessages_OnRelationshipTable;
-            Driver.KafkaClient.ClientKafkaMessages.OnPrivateChat += ClientKafkaMessages_OnPrivateChat;
-
-            Driver.VoiceClient.ClientVoiceMessages.OnLocalAudioData += ClientVoiceMessages_OnLocalAudioData;
-            Driver.VoiceClient.ClientVoiceMessages.OnLocalAudioStreamState += ClientVoiceMessages_OnLocalAudioStreamState;
 
            // Driver.RegionToJoin = new RegionDetails("nop", "flat2");
             Driver.RegionToJoin = new RegionDetails("sansar-studios", "sansar-park");
@@ -88,9 +82,34 @@ namespace EchoBot
             ConversationThread.Join();
         }
 
+
+        public override void OnPacket(IPacket packet)
+        {
+            base.OnPacket(packet);
+
+            switch (packet.MessageId)
+            {
+                case ClientKafkaMessages.RegionChat:
+                    ClientKafkaMessages_OnRegionChat((SanProtocol.ClientKafka.RegionChat)packet);
+                    break;
+                case ClientKafkaMessages.RelationshipTable:
+                    ClientKafkaMessages_OnRelationshipTable((SanProtocol.ClientKafka.RelationshipTable)packet);
+                    break;
+                case ClientKafkaMessages.PrivateChat:
+                    ClientKafkaMessages_OnPrivateChat((SanProtocol.ClientKafka.PrivateChat)packet);
+                    break;
+                case ClientVoiceMessages.LocalAudioData:
+                    ClientVoiceMessages_OnLocalAudioData((SanProtocol.ClientVoice.LocalAudioData)packet);
+                    break;
+                case ClientVoiceMessages.LocalAudioStreamState:
+                    ClientVoiceMessages_OnLocalAudioStreamState((SanProtocol.ClientVoice.LocalAudioStreamState)packet);
+                    break;
+            }
+        }
+
         public bool IsInitialized { get; set; } = false;
 
-        private void ClientVoiceMessages_OnLocalAudioStreamState(object? sender, LocalAudioStreamState e)
+        private void ClientVoiceMessages_OnLocalAudioStreamState(LocalAudioStreamState e)
         {
             if(!IsInitialized)
             {
@@ -124,7 +143,7 @@ namespace EchoBot
             ));
         }
 
-        private void ClientKafkaMessages_OnPrivateChat(object? sender, PrivateChat e)
+        private void ClientKafkaMessages_OnPrivateChat(PrivateChat e)
         {
             if(!Driver.VoiceClient.GotVersionPacket)
             {
@@ -162,7 +181,7 @@ namespace EchoBot
             }
         }
 
-        private void ClientKafkaMessages_OnRelationshipTable(object? sender, RelationshipTable e)
+        private void ClientKafkaMessages_OnRelationshipTable(RelationshipTable e)
         {
             if (!Driver.VoiceClient.GotVersionPacket)
             {
@@ -198,7 +217,7 @@ namespace EchoBot
 
         public Dictionary<uint, string> AgentControllerToNameMap { get; set; } = new Dictionary<uint, string>();
 
-        private void ClientKafkaMessages_OnRegionChat(object? sender, RegionChat e)
+        private void ClientKafkaMessages_OnRegionChat(RegionChat e)
         {
             var persona = Driver.ResolvePersonaId(e.FromPersonaId).Result;
             if (e.Message == "")
@@ -297,7 +316,7 @@ namespace EchoBot
             return (float)Math.Sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2) + (z1 - z2) * (z1 - z2));
         }
 
-        private void ClientVoiceMessages_OnLocalAudioData(object? sender, SanProtocol.ClientVoice.LocalAudioData e)
+        private void ClientVoiceMessages_OnLocalAudioData(SanProtocol.ClientVoice.LocalAudioData e)
         {
             // MAIN THREAD
             if (!ConversationsByAgentControllerId.ContainsKey(e.AgentControllerId))
@@ -310,7 +329,7 @@ namespace EchoBot
             conversation.AddVoiceData(e.Data);
         }
 
-        private void ConversationBot_OnSpeechToText(object? sender, SpeechToTextItem result)
+        private void ConversationBot_OnSpeechToText(Object? source, SpeechToTextItem result)
         {
             // MAIN THREAD
             if (result.Text.Length == 0)

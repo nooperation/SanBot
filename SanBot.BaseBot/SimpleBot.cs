@@ -1,0 +1,174 @@
+﻿using SanBot.Core;
+using SanBot.Database;
+using SanProtocol;
+using SanProtocol.ClientKafka;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Security;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Threading;
+using System.Threading.Tasks;
+using static SanWebApi.Json.WebApiResponse;
+
+namespace SanBot.BaseBot
+{
+    public class SimpleBot
+    {
+        private PersonaDatabase Database { get; }
+        public Driver Driver { get; set; }
+
+        public SimpleBot()
+        {
+            Driver = new Driver();
+            Driver.OnOutput += Driver_OnOutput;
+            Driver.OnPacket = OnPacket;
+
+            Database = new PersonaDatabase();
+        }
+
+        public virtual void OnPacket(IPacket packet)
+        {
+            switch(packet.MessageId)
+            {
+                case SanProtocol.Messages.ClientKafkaMessages.LoginReply:
+                    ClientKafkaMessages_OnLoginReply((SanProtocol.ClientKafka.LoginReply)packet);
+                    break;
+                case SanProtocol.Messages.ClientRegionMessages.UserLoginReply:
+                    ClientRegionMessages_OnUserLoginReply((SanProtocol.ClientRegion.UserLoginReply)packet);
+                    break;
+            }
+        }
+
+        public virtual Task Init()
+        {
+            return Task.CompletedTask;
+        }
+
+        public async virtual Task Start(SecureString username, SecureString password)
+        {
+            await Driver.StartAsync(username, password);
+
+            while (true)
+            {
+                Driver.Poll();
+            }
+        }
+
+        public void SpawnItemAt(List<float> position, List<float> offset, SanUUID itemClusterResourceId)
+        {
+            if (Driver.MyPersonaData == null || Driver.MyPersonaData.AgentControllerId == null)
+            {
+                return;
+            }
+
+            Driver.RequestSpawnItem(
+                Driver.GetCurrentFrame(),
+                itemClusterResourceId,
+                new List<float>(){
+                    position[0] + offset[0],
+                    position[1] + offset[1],
+                    position[2] + offset[2],
+                },
+                new Quaternion()
+                {
+                    ModifierFlag = false,
+                    UnknownA = 2,
+                    UnknownB = false,
+                    Values = new List<float>()
+                    {
+                        0,
+                        0,
+                        0,
+                    }
+                },
+                Driver.MyPersonaData.AgentControllerId.Value
+            );
+        }
+
+
+        private void Driver_OnOutput(object? sender, string message)
+        {
+            Output(message, sender?.GetType().Name ?? "Bot");
+        }
+
+        private void Output(string str, string sender = nameof(SimpleBot))
+        {
+            var date = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+
+            var finalOutput = "";
+
+            var lines = str.Replace("\r", "").Split("\n");
+            foreach (var line in lines)
+            {
+                finalOutput += $"{date} [{sender}] {line}{Environment.NewLine}";
+            }
+
+            Console.Write(finalOutput);
+        }
+
+        private void ClientRegionMessages_OnUserLoginReply(SanProtocol.ClientRegion.UserLoginReply e)
+        {
+            if (!e.Success)
+            {
+                throw new Exception("Failed to enter region");
+            }
+
+            Output("Logged into region: " + e.ToString());
+
+            var regionAddress = Driver.CurrentInstanceId!.Format();
+            Driver.KafkaClient.SendPacket(new SanProtocol.ClientKafka.EnterRegion(
+                regionAddress
+            ));
+
+            Driver.RegionClient.SendPacket(new SanProtocol.ClientRegion.ClientDynamicReady(
+                //new List<float>() { (float)(radius*Math.Sin(angleRads)), (float)(radius * Math.Cos(angleRads)), 5.0f },
+                new List<float>() { 11.695435f, 32.8338f, 17.2235107f },
+                new List<float>() { 0, 0, 0, 0 }, // upside down spin ish
+                new SanUUID(Driver.MyPersonaDetails!.Id),
+                "",
+                1,
+                1
+            ));
+
+            Driver.RegionClient.SendPacket(new SanProtocol.ClientRegion.ClientStaticReady(
+                1
+            ));
+
+            OnRegionLoginSuccess(e);
+        }
+
+        public virtual void OnRegionLoginSuccess(SanProtocol.ClientRegion.UserLoginReply e)
+        {
+
+        }
+
+        private void ClientKafkaMessages_OnLoginReply(LoginReply e)
+        {
+            if (!e.Success)
+            {
+                throw new Exception($"KafkaClient failed to login: {e.Message}");
+            }
+
+
+            Output("Checking categories...");
+            var marketplaceCategories = Driver.WebApi.GetMarketplaceCategoriesAsync().Result;
+            Output($"Categories = " + marketplaceCategories);
+
+            Output("Checking balance...");
+            var balanceResponse = Driver.WebApi.GetBalanceAsync().Result;
+            Output($"Balance = {balanceResponse.Data.Balance} {balanceResponse.Data.Currency} (Earned={balanceResponse.Data.Earned} General={balanceResponse.Data.General})");
+
+            Output("Kafka client logged in successfully");
+          //  Driver.JoinRegion("sansar-studios", "sansar-park").Wait();
+
+            OnKafkaLoginSuccess(e);
+        }
+
+        public virtual void OnKafkaLoginSuccess(LoginReply e)
+        {
+            Console.WriteLine("SimpleBot::OnKafkaLoginSuccess");
+        }
+    }
+}
