@@ -15,8 +15,9 @@ namespace CreeperBot
         public ConcurrentDictionary<uint, VoiceConversation> ConversationsByAgentControllerId { get; set; } = new ConcurrentDictionary<uint, VoiceConversation>();
 
         public Thread? ConversationThread { get; set; }
-
         private bool _IsConversationThreadRunning = false;
+
+        public RegionDetails RegionToJoin { get; set; } = new RegionDetails("sansar-studios", "sansar-park");
 
         public override Task Start()
         {
@@ -33,8 +34,7 @@ namespace CreeperBot
                 throw new Exception("Missing or invalid config.json", ex);
             }
 
-            Driver.RegionToJoin = new RegionDetails("nop", "flat");
-            //Driver.RegionToJoin = new RegionDetails("sansar-studios", "sansar-park");
+            Driver.RegionToJoin = RegionToJoin;
             Driver.AutomaticallySendClientReady = false;
             Driver.IgnoreRegionServer = true;
             Driver.UseVoice = false;

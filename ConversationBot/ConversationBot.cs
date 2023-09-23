@@ -67,6 +67,8 @@ namespace ConversationBot
             "bot",
         };
 
+        public RegionDetails RegionToJoin { get; set; } = new RegionDetails("sansar-studios", "sansar-park");
+
         private AzureApi? _azureApi = null;
 
         public override Task Start()
@@ -90,7 +92,7 @@ namespace ConversationBot
                 _azureApi = new AzureApi(azureConfigPath, Driver.Speak);
             }
 
-            Driver.RegionToJoin = new RegionDetails("nop", "flat");
+            Driver.RegionToJoin = RegionToJoin;
             Driver.AutomaticallySendClientReady = true;
             Driver.UseVoice = true;
             Driver.StartAsync(config.Username, config.Password).Wait();

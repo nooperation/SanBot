@@ -35,6 +35,8 @@ namespace SanBot
             "fakename-12345678"
         };
 
+        public RegionDetails RegionToJoin { get; set; } = new RegionDetails("sansar-studios", "sansar-park");
+
         public override async Task Start()
         {
             Driver.AutomaticallySendClientReady = true;
@@ -217,8 +219,7 @@ namespace SanBot
         {
             Console.WriteLine("Bot::OnKafkaLoginSuccess");
 
-            //Driver.JoinRegion("sansar-studios", "sansar-park").Wait();
-            Driver.JoinRegion("nop", "flat").Wait();
+            Driver.JoinRegion(RegionToJoin.PersonaHandle, RegionToJoin.SceneHandle).Wait();
         }
     }
 }

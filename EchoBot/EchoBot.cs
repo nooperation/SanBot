@@ -16,7 +16,9 @@ namespace EchoBot
         public List<byte[]> VoiceBuffer { get; set; } = new List<byte[]>();
         public DateTime? TimeStartedListeningToTarget { get; set; } = null;
 
+        // NOTE: It's not going to echo unless you actually summon it with this reaction first
         public SanUUID ItemClousterResourceId { get; set; } = new SanUUID("8d9484518db405d954204f2bfa900d0c"); // heart reaction thing
+        public RegionDetails RegionToJoin { get; set; } = new RegionDetails("sansar-studios", "sansar-park");
 
         public HashSet<string> IgnoredPeople { get; set; } = new HashSet<string>()
         {
@@ -295,7 +297,7 @@ namespace EchoBot
 
         public override void OnKafkaLoginSuccess(SanProtocol.ClientKafka.LoginReply e)
         {
-            Driver.JoinRegion("nop", "flat").Wait();
+            Driver.JoinRegion(RegionToJoin.PersonaHandle, RegionToJoin.SceneHandle).Wait();
         }
     }
 }

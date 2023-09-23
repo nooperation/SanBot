@@ -30,6 +30,8 @@ namespace CrowdBot
             "nick-sansar"
         };
 
+        public RegionDetails RegionToJoin { get; set; } = new RegionDetails("sansar-studios", "sansar-park");
+
         public SanProtocol.AnimationComponent.CharacterTransformPersistent? SavedTransform { get; set; }
         public SanProtocol.AgentController.AgentPlayAnimation? SavedAnimation { get; set; }
         public SanProtocol.AgentController.CharacterControllerInputReliable? SavedControllerInput { get; set; }
@@ -72,7 +74,7 @@ namespace CrowdBot
         {
             IsRunning = true;
 
-            Driver.RegionToJoin = new RegionDetails("nop", "flat");
+            Driver.RegionToJoin = RegionToJoin;
             Driver.AutomaticallySendClientReady = true;
             Driver.UseVoice = true;
 
