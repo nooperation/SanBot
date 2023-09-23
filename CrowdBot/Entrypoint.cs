@@ -1,23 +1,18 @@
-﻿using SanBot.Core;
-using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Collections.Concurrent;
+using System.Net;
+using SanBot.Core;
+using static SanBot.Core.ConfigFile;
 
 namespace CrowdBot
 {
-
     public class CrowdBotConfig
     {
-        public List<BotConfig> bots { get; set; }
-
+        public List<BotConfig>? bots { get; set; }
 
         public class BotConfig
         {
-            public string Id { get; set; }
-            public ConfigFile Credentials { get; set; } = default!;
+            public string? Id { get; set; }
+            public ConfigFileInsecure Credentials { get; set; } = default!;
 
             public SanProtocol.AnimationComponent.CharacterTransformPersistent? SavedTransform { get; set; }
             public SanProtocol.AgentController.AgentPlayAnimation? SavedAnimation { get; set; }
@@ -25,10 +20,20 @@ namespace CrowdBot
         }
     }
 
-
-
     public class Entrypoint
     {
+        public CrowdBotConfig BotConfigs { get; set; }
+        public int CurrentBotIndex { get; set; } = 0;
+
+        private readonly List<string> Voices = new()
+        {
+            "<speak xmlns='http://www.w3.org/2001/10/synthesis' xmlns:mstts='http://www.w3.org/2001/mstts' xmlns:emo='http://www.w3.org/2009/10/emotionml' version='1.0' xml:lang='en-US'><voice name='en-US-DavisNeural'><mstts:express-as style='excited' ><prosody rate='24%' pitch='0%'>#MESSAGE#</prosody></mstts:express-as></voice></speak>",
+            "<speak xmlns='http://www.w3.org/2001/10/synthesis' xmlns:mstts='http://www.w3.org/2001/mstts' xmlns:emo='http://www.w3.org/2009/10/emotionml' version='1.0' xml:lang='en-US'><voice name='en-US-AIGenerate1Neural'><prosody rate='0%' pitch='0%'>#MESSAGE#</prosody></voice></speak>",
+            "<speak xmlns='http://www.w3.org/2001/10/synthesis' xmlns:mstts='http://www.w3.org/2001/mstts' xmlns:emo='http://www.w3.org/2009/10/emotionml' version='1.0' xml:lang='en-US'><voice name='en-US-SteffanNeural'><prosody rate='0%' pitch='0%'>#MESSAGE#</prosody></voice></speak>",
+            "<speak xmlns='http://www.w3.org/2001/10/synthesis' xmlns:mstts='http://www.w3.org/2001/mstts' xmlns:emo='http://www.w3.org/2009/10/emotionml' version='1.0' xml:lang='en-US'><voice name='en-US-RogerNeural'><prosody rate='24%' pitch='0%'>#MESSAGE#</prosody></voice></speak>",
+            "<speak xmlns='http://www.w3.org/2001/10/synthesis' xmlns:mstts='http://www.w3.org/2001/mstts' xmlns:emo='http://www.w3.org/2009/10/emotionml' version='1.0' xml:lang='en-US'><voice name='en-US-JaneNeural'><prosody rate='24%' pitch='0%'>#MESSAGE#</prosody></voice></speak>",
+            "<speak xmlns='http://www.w3.org/2001/10/synthesis' xmlns:mstts='http://www.w3.org/2001/mstts' xmlns:emo='http://www.w3.org/2009/10/emotionml' version='1.0' xml:lang='en-US'><voice name='en-US-MonicaNeural'><prosody rate='9%' pitch='-3%'>#MESSAGE#</prosody></voice></speak>",
+        };
 
         public struct GoogleTTSVoice
         {
@@ -43,21 +48,6 @@ namespace CrowdBot
             public float Rate { get; set; }
             public float Pitch { get; set; }
         }
-
-        public CrowdBotConfig BotConfigs { get; set; }
-        public int CurrentBotIndex { get; set; } = 0;
-
-
-        List<string> Voices = new List<string>()
-        {
-            "<speak xmlns='http://www.w3.org/2001/10/synthesis' xmlns:mstts='http://www.w3.org/2001/mstts' xmlns:emo='http://www.w3.org/2009/10/emotionml' version='1.0' xml:lang='en-US'><voice name='en-US-DavisNeural'><mstts:express-as style='excited' ><prosody rate='24%' pitch='0%'>#MESSAGE#</prosody></mstts:express-as></voice></speak>",
-            "<speak xmlns='http://www.w3.org/2001/10/synthesis' xmlns:mstts='http://www.w3.org/2001/mstts' xmlns:emo='http://www.w3.org/2009/10/emotionml' version='1.0' xml:lang='en-US'><voice name='en-US-AIGenerate1Neural'><prosody rate='0%' pitch='0%'>#MESSAGE#</prosody></voice></speak>",
-            "<speak xmlns='http://www.w3.org/2001/10/synthesis' xmlns:mstts='http://www.w3.org/2001/mstts' xmlns:emo='http://www.w3.org/2009/10/emotionml' version='1.0' xml:lang='en-US'><voice name='en-US-SteffanNeural'><prosody rate='0%' pitch='0%'>#MESSAGE#</prosody></voice></speak>",
-            "<speak xmlns='http://www.w3.org/2001/10/synthesis' xmlns:mstts='http://www.w3.org/2001/mstts' xmlns:emo='http://www.w3.org/2009/10/emotionml' version='1.0' xml:lang='en-US'><voice name='en-US-RogerNeural'><prosody rate='24%' pitch='0%'>#MESSAGE#</prosody></voice></speak>",
-            "<speak xmlns='http://www.w3.org/2001/10/synthesis' xmlns:mstts='http://www.w3.org/2001/mstts' xmlns:emo='http://www.w3.org/2009/10/emotionml' version='1.0' xml:lang='en-US'><voice name='en-US-JaneNeural'><prosody rate='24%' pitch='0%'>#MESSAGE#</prosody></voice></speak>",
-            "<speak xmlns='http://www.w3.org/2001/10/synthesis' xmlns:mstts='http://www.w3.org/2001/mstts' xmlns:emo='http://www.w3.org/2009/10/emotionml' version='1.0' xml:lang='en-US'><voice name='en-US-MonicaNeural'><prosody rate='9%' pitch='-3%'>#MESSAGE#</prosody></voice></speak>",
-        };
-
         public List<GoogleTTSVoice> GoogleVoices { get; set; } = new List<GoogleTTSVoice>()
         {
             new GoogleTTSVoice("en-US-Neural2-A", 1.25f, -4.0f),
@@ -69,7 +59,8 @@ namespace CrowdBot
             new GoogleTTSVoice("en-US-Wavenet-C", 1.25f, 1.60f),
             new GoogleTTSVoice("en-US-Wavenet-D", 1.25f, 0),
         };
-        List<string> Catchphrases = new List<string>()
+
+        private readonly List<string> Catchphrases = new()
         {
             "Hey #NAME#! How's it going?",
             "#NAME#! Are you ready to rock!?",
@@ -92,9 +83,8 @@ namespace CrowdBot
                 "SanBot"
             );
 
-
             var configPath = Path.Join(sanbotPath, "CrowdBots.json");
-            if(args.Length > 0)
+            if (args.Length > 0)
             {
                 configPath = Path.Join(sanbotPath, $"CrowdBots_{args[0]}.json");
             }
@@ -111,18 +101,18 @@ namespace CrowdBot
 
             AddBot();
 
-            List<CrowdBot> BotsToDestroy = new List<CrowdBot>();
+            var BotsToDestroy = new List<CrowdBot>();
             while (Bots.Count > 0)
             {
                 foreach (var bot in Bots.Values)
                 {
-                    if (!bot.Poll())
+                    if (!bot.IsRunning)
                     {
                         BotsToDestroy.Add(bot);
                     }
                 }
 
-                if(BotsToDestroy.Count > 0)
+                if (BotsToDestroy.Count > 0)
                 {
                     foreach (var bot in BotsToDestroy)
                     {
@@ -133,10 +123,10 @@ namespace CrowdBot
                     BotsToDestroy.Clear();
                 }
 
-                
-                while(BotsToAdd.TryPop(out var config))
+
+                while (BotsToAdd.TryPop(out var config))
                 {
-                    if(config == null)
+                    if (config == null)
                     {
                         AddBot();
                     }
@@ -149,7 +139,7 @@ namespace CrowdBot
                 Thread.Sleep(10);
             }
         }
-        
+
 
         public void AddBot()
         {
@@ -163,20 +153,17 @@ namespace CrowdBot
             AddBot(config);
         }
 
-
-        public List<Thread> BotThreads { get; set; } = new List<Thread>();
-
         public void AddBot(CrowdBotConfig.BotConfig config)
         {
             var botId = config.Id;
-            var bot = new CrowdBot(botId, config.SavedTransform, config.SavedControllerInput, config.SavedAnimation);
+            var bot = new CrowdBot(botId, config.SavedTransform, config.SavedControllerInput, config.SavedAnimation)
+            {
+                Voice = Voices[Bots.Count % Voices.Count],
+                GoogleTTSVoice = GoogleVoices[Bots.Count % GoogleVoices.Count],
+                Catchphrases = Catchphrases
+            };
 
-
-            bot.Voice = Voices[Bots.Count % Voices.Count];
-            bot.GoogleTTSVoice = GoogleVoices[Bots.Count % GoogleVoices.Count];
-            bot.Catchphrases = Catchphrases;
-
-            int i = 1;
+            var i = 1;
             while (!Bots.TryAdd(botId, bot))
             {
                 botId = $"{config.Id}_{i}";
@@ -186,7 +173,14 @@ namespace CrowdBot
 
             bot.OnRequestRestartBot += Bot_OnRequestRestartBot;
             bot.OnRequestAddBot += Bot_OnRequestAddBot;
-            bot.Start(config.Credentials);
+
+            var credentials = new ConfigFile
+            {
+                Username = new NetworkCredential("", config.Credentials.Username).SecurePassword,
+                Password = new NetworkCredential("", config.Credentials.Password).SecurePassword
+            };
+
+            bot.Start(credentials);
         }
 
         private void Bot_OnRequestAddBot(object? sender, EventArgs e)
@@ -194,15 +188,14 @@ namespace CrowdBot
             BotsToAdd.Push(null);
         }
 
-        static void Main(string[] args)
+        private static void Main(string[] args)
         {
             new Entrypoint(args);
         }
 
         public void Bot_OnRequestRestartBot(object? sender, EventArgs e)
         {
-            var bot = sender as CrowdBot;
-            if (bot == null)
+            if (sender is not CrowdBot bot)
             {
                 Console.WriteLine("Bot_OnRequestRestartBot: Bad bot source");
                 return;
@@ -217,7 +210,7 @@ namespace CrowdBot
 
 
             var existingConfig = BotConfigs.bots.FirstOrDefault(n => n.Id == foundBot.Id);
-            if(existingConfig == null)
+            if (existingConfig == null)
             {
                 Console.WriteLine("Failed to find existing config?");
                 foundBot.Disconnect();

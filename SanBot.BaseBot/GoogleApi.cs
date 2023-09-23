@@ -3,7 +3,7 @@ using NAudio.Wave;
 
 namespace SanBot.BaseBot
 {
-    internal class GoogleApi
+    public class GoogleApi
     {
         public class GoogleConfigPayload
         {

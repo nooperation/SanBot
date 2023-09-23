@@ -1,20 +1,9 @@
-﻿using SanWebApi.Json;
-using SanProtocol.ClientKafka;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Text;
+﻿using System.Diagnostics;
 using System.Text.RegularExpressions;
-using System.Threading;
-using System.Threading.Tasks;
-using SanProtocol;
-using SanBot.Core;
-using System.Web;
-using SanBot.Core.MessageHandlers;
-using System.Diagnostics;
-using SanProtocol.WorldState;
-using System.Net;
 using SanBot.BaseBot;
+using SanBot.Core;
+using SanProtocol;
+using SanProtocol.ClientKafka;
 using static SanProtocol.Messages;
 
 namespace CrowdBot
@@ -24,14 +13,11 @@ namespace CrowdBot
         public event EventHandler? OnRequestRestartBot;
         public event EventHandler? OnRequestAddBot;
 
-        public Driver Driver { get; set; }
-
         public HashSet<PersonaData> TargetPersonas { get; set; } = new HashSet<PersonaData>();
 
         public string Id { get; set; } = "";
 
         public bool FollowTargetMode { get; set; } = true;
-        public bool IsRunning { get; set; } = false;
 
         public HashSet<string> OwnerHandles { get; set; } = new HashSet<string>() {
             "nop",
@@ -48,10 +34,15 @@ namespace CrowdBot
         public SanProtocol.AgentController.AgentPlayAnimation? SavedAnimation { get; set; }
         public SanProtocol.AgentController.CharacterControllerInputReliable? SavedControllerInput { get; set; }
 
-        public string Voice { get; set; }
+        public string Voice { get; set; } = "";
         public Entrypoint.GoogleTTSVoice GoogleTTSVoice { get; set; }
-        public List<string> Catchphrases { get; set; }
-        public bool UseCatchprase { get; set; } = false;
+        public List<string> Catchphrases { get; set; } = new List<string>();
+        public bool UseCatchprase { get; set; } = true;
+
+        private readonly GoogleApi? _googleApi = null;
+        private readonly AzureApi? _azureApi = null;
+
+        public bool IsRunning { get; set; } = false;
 
         public CrowdBot(string id, SanProtocol.AnimationComponent.CharacterTransformPersistent? transformToRestore, SanProtocol.AgentController.CharacterControllerInputReliable? controllerInputToRestore, SanProtocol.AgentController.AgentPlayAnimation? animationToRestore)
         {
@@ -60,17 +51,42 @@ namespace CrowdBot
             SavedAnimation = animationToRestore;
             SavedControllerInput = controllerInputToRestore;
 
-            Driver = new Driver();
+            var sanbotPath = Path.Join(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                "SanBot"
+            );
+            var googleConfigPath = Path.Join(sanbotPath, "google.json");
+            var azureConfigPath = Path.Join(sanbotPath, "azure.json");
 
-            Driver.OnOutput += Driver_OnOutput;
+            if (File.Exists(googleConfigPath))
+            {
+                _googleApi = new GoogleApi(googleConfigPath, Driver.Speak);
+            }
+            if (File.Exists(azureConfigPath))
+            {
+                _azureApi = new AzureApi(azureConfigPath, Driver.Speak);
+            }
+        }
 
-           /// Driver.RegionToJoin = new RegionDetails("nop", "flat2");
-           // Driver.RegionToJoin = new RegionDetails("nop", "flat");
-          //  Driver.RegionToJoin = new RegionDetails("sansar-studios", "club-sansar");
-           Driver.RegionToJoin = new RegionDetails("sansar-studios", "social-hub");
+        public async Task Start(ConfigFile config)
+        {
+            IsRunning = true;
 
+            Driver.RegionToJoin = new RegionDetails("nop", "flat");
             Driver.AutomaticallySendClientReady = true;
-            Driver.UseVoice = false;
+            Driver.UseVoice = true;
+
+            if (_googleApi != null)
+            {
+                _googleApi.TextToSpeechVoice = Voice;
+                _googleApi.GoogleTTSName = GoogleTTSVoice.Name;
+                _googleApi.GoogleTTSPitch = GoogleTTSVoice.Pitch;
+                _googleApi.GoogleTTSRate = GoogleTTSVoice.Rate;
+            }
+
+            await base.Start(config.Username, config.Password);
+
+            IsRunning = false;
         }
 
         public override void OnPacket(IPacket packet)
@@ -124,32 +140,10 @@ namespace CrowdBot
             }
         }
 
-        public void Start(ConfigFile config)
-        {
-            Driver.TextToSpeechVoice = Voice;
-            Driver.GoogleTTSName = GoogleTTSVoice.Name;
-            Driver.GoogleTTSPitch = GoogleTTSVoice.Pitch;
-            Driver.GoogleTTSRate = GoogleTTSVoice.Rate;
-
-            IsRunning = true;
-            Driver.StartAsync(config).Wait();
-        }
-
-        public bool Poll()
-        {
-            if(!IsRunning)
-            {
-                return false;
-            }
-
-            Driver.Poll();
-            return IsRunning;
-        }
-
-        public SanUUID ItemClousterResourceId { get; set; } = new SanUUID("04c2d5a7ea3d6fb47af66669cfdc9f9a"); // heart reaction thing
+        public SanUUID ItemClousterResourceId { get; set; } = new SanUUID("8d9484518db405d954204f2bfa900d0c"); // heart reaction thing
         private void WorldStateMessages_OnCreateClusterViaDefinition(SanProtocol.WorldState.CreateClusterViaDefinition e)
         {
-            if (e.ResourceId == this.ItemClousterResourceId)
+            if (e.ResourceId == ItemClousterResourceId)
             {
                 Driver.WarpToPosition(e.SpawnPosition, e.SpawnRotation);
                 Driver.SetVoicePosition(e.SpawnPosition, true);
@@ -158,7 +152,7 @@ namespace CrowdBot
 
         private void AgentControllerMessages_OnCharacterControlPointInputReliable(SanProtocol.AgentController.CharacterControlPointInputReliable e)
         {
-            if(Driver.MyPersonaData == null || Driver.MyPersonaData.AgentControllerId == null)
+            if (Driver.MyPersonaData == null || Driver.MyPersonaData.AgentControllerId == null)
             {
                 return;
             }
@@ -270,7 +264,7 @@ namespace CrowdBot
             var persona = TargetPersonas
                 .Where(n => n.AgentComponentId == e.ComponentId)
                 .FirstOrDefault();
-            if(persona == null)
+            if (persona == null)
             {
                 return;
             }
@@ -379,7 +373,7 @@ namespace CrowdBot
             {
                 SavedAnimation = null;
             }
-                
+
             Driver.RegionClient.EnqueuePacket(new SanProtocol.AgentController.CharacterControllerInput(
                 Driver.GetCurrentFrame(),
                 Driver.MyPersonaData.AgentControllerId.Value,
@@ -421,7 +415,7 @@ namespace CrowdBot
 
             if (FollowTargetMode)
             {
-                if(SavedAnimation == null)
+                if (SavedAnimation == null)
                 {
                     SavedTransform = e;
                 }
@@ -431,9 +425,8 @@ namespace CrowdBot
             }
         }
 
-        Dictionary<ulong, bool> spokenToAvatar = new Dictionary<ulong, bool>();
-
-        Random rand = new Random();
+        private readonly Dictionary<ulong, bool> spokenToAvatar = new();
+        private readonly Random rand = new();
         private void AnimationComponentMessages_OnCharacterTransform(SanProtocol.AnimationComponent.CharacterTransform e)
         {
             var persona = Driver.PersonasBySessionId
@@ -445,7 +438,7 @@ namespace CrowdBot
                 return;
             }
 
-            if(!spokenToAvatar.ContainsKey(e.ComponentId))
+            if (!spokenToAvatar.ContainsKey(e.ComponentId))
             {
                 spokenToAvatar.Add(e.ComponentId, false);
             }
@@ -455,7 +448,7 @@ namespace CrowdBot
                 return;
             }
 
-            if(UseCatchprase)
+            if (UseCatchprase && _azureApi != null)
             {
                 var myPos = Driver.MyPersonaData.Position;
                 var distToTarget = Utils.Distance(myPos[0], persona.Position[0], myPos[1], persona.Position[1], myPos[2], persona.Position[2]);
@@ -466,7 +459,7 @@ namespace CrowdBot
                     {
                         spokenToAvatar[e.ComponentId] = true;
                         var catchphrase = Catchphrases[rand.Next(0, Catchphrases.Count)].Replace("#NAME#", persona.UserName);
-                        Driver.SpeakAzure(catchphrase, true);
+                        _azureApi.SpeakAzure(catchphrase, true);
                     }
                 }
                 else if (distToTarget >= 10)
@@ -537,24 +530,24 @@ namespace CrowdBot
                 .Where(n => n.Value.PersonaId == e.FromPersonaId)
                 .Select(n => n.Value)
                 .FirstOrDefault();
-            if(sourcePersona == null)
+            if (sourcePersona == null)
             {
                 return;
             }
 
-            if(!OwnerHandles.Contains(sourcePersona.Handle.ToLower()))
+            if (!OwnerHandles.Contains(sourcePersona.Handle.ToLower()))
             {
                 return;
             }
 
             Output($"Owner Message: {e.Message}");
-            if(e.Message.StartsWith('/'))
+            if (e.Message.StartsWith('/'))
             {
                 e.Message = e.Message[1..];
             }
 
             var firstSpace = e.Message.IndexOf(' ');
-            if(firstSpace == -1)
+            if (firstSpace == -1)
             {
                 return;
             }
@@ -576,7 +569,7 @@ namespace CrowdBot
                     .Select(n => n.Value)
                     .OrderBy(n => n.SessionId)
                     .LastOrDefault();
-                if(persona == null)
+                if (persona == null)
                 {
                     Say($"Could not find session details for persona ID {e.FromPersonaId}");
                     return;
@@ -603,13 +596,13 @@ namespace CrowdBot
                 Output($"Start following {persona.UserName} ({persona.Handle})...");
                 StartFollowing(persona);
             }
-            else if(command.StartsWith("clone "))
+            else if (command.StartsWith("clone "))
             {
                 var cloneTargetHandle = command[6..].ToLower().Trim();
 
                 var targetAvatarAssetId = "";
 
-                if(Regex.IsMatch(cloneTargetHandle, "[0-9a-f]{32}"))
+                if (Regex.IsMatch(cloneTargetHandle, "[0-9a-f]{32}"))
                 {
                     targetAvatarAssetId = cloneTargetHandle;
                 }
@@ -636,7 +629,7 @@ namespace CrowdBot
                     targetAvatarAssetId = match.Groups["avatarAssetId"].Value;
                 }
 
-                if(!Utils.AvatarAssetIdExists(targetAvatarAssetId))
+                if (!Utils.AvatarAssetIdExists(targetAvatarAssetId))
                 {
                     Say($"Could not find avatar asset for {cloneTargetHandle}");
                     return;
@@ -648,18 +641,18 @@ namespace CrowdBot
                 OnRequestRestartBot?.Invoke(this, new EventArgs());
                 Driver.Disconnect();
             }
-            else if(command == "add")
+            else if (command == "add")
             {
                 Say("Ok");
                 OnRequestAddBot?.Invoke(this, new EventArgs());
             }
-            else if(command == "stop")
+            else if (command == "stop")
             {
                 Output($"Stop following");
                 Say("Ok");
                 StopFollowing();
             }
-            else if(command == "exit")
+            else if (command == "exit")
             {
                 Say("Bye");
                 Disconnect();
@@ -669,15 +662,12 @@ namespace CrowdBot
         public void Disconnect()
         {
             StopFollowing();
-            IsRunning = false;
             Driver.Disconnect();
         }
 
-
-
         public void StartFollowing(PersonaData persona)
         {
-            if(persona.AgentControllerId == null)
+            if (persona.AgentControllerId == null)
             {
                 Output("Could not follow because we don't know what this user's controlelr id is yet");
                 return;
@@ -726,6 +716,5 @@ namespace CrowdBot
             Output(str);
             //this.Driver.SendChatMessage(str);
         }
-
     }
 }

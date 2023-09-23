@@ -95,7 +95,6 @@ namespace SanBot.BaseBot
             );
         }
 
-
         private void Driver_OnOutput(object? sender, string message)
         {
             Output(message, sender?.GetType().Name ?? "Bot");
