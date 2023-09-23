@@ -1,10 +1,6 @@
 ﻿using Microsoft.CognitiveServices.Speech;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 
-namespace SanBot.Core
+namespace SanBot.BaseBot
 {
     public class AzureApi
     {
@@ -19,7 +15,7 @@ namespace SanBot.Core
         private readonly Action<byte[]> _speakFunction;
 
         public HashSet<string> PreviousMessages { get; set; } = new HashSet<string>();
-        
+
         public string TextToSpeechVoice { get; set; } = $"<speak xmlns='http://www.w3.org/2001/10/synthesis' xmlns:mstts='http://www.w3.org/2001/mstts' xmlns:emo='http://www.w3.org/2009/10/emotionml' version='1.0' xml:lang='en-US'><voice name=\"en-US-JennyNeural\"><prosody volume='40'  rate=\'20%\' pitch=\'0%\'>#MESSAGE#</prosody></voice></speak>";
 
         public AzureApi(string configPath, Action<byte[]> speakFunction)
@@ -84,7 +80,7 @@ namespace SanBot.Core
             }
         }
 
-        static void OutputSpeechSynthesisResult(SpeechSynthesisResult speechSynthesisResult)
+        private static void OutputSpeechSynthesisResult(SpeechSynthesisResult speechSynthesisResult)
         {
             switch (speechSynthesisResult.Reason)
             {

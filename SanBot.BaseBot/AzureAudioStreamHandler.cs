@@ -1,16 +1,16 @@
 ﻿using Microsoft.CognitiveServices.Speech.Audio;
 
-namespace SanBot.Core
+namespace SanBot.BaseBot
 {
     public class AzureAudioStreamHandler : PushAudioOutputStreamCallback
     {
-        private readonly List<byte[]> _collectedBytes = new List<byte[]>();
+        private readonly List<byte[]> _collectedBytes = new();
 
         private readonly Action<byte[]> _speakFunction;
 
         public AzureAudioStreamHandler(Action<byte[]> speakFunction)
         {
-            this._speakFunction = speakFunction;
+            _speakFunction = speakFunction;
         }
 
         public override uint Write(byte[] dataBuffer)

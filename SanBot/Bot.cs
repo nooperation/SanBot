@@ -37,7 +37,7 @@ namespace SanBot
 
         public override Task Init()
         {
-            Task unused = base.Init();
+            var unused = base.Init();
 
             Driver.AutomaticallySendClientReady = true;
             Driver.OnOutput += Driver_OnOutput;
@@ -95,11 +95,11 @@ namespace SanBot
             }
 
             ConfigFile config;
-            string sanbotPath = Path.Join(
+            var sanbotPath = Path.Join(
                 Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                 "SanBot"
             );
-            string configPath = Path.Join(sanbotPath, "SanBot.config.json");
+            var configPath = Path.Join(sanbotPath, "SanBot.config.json");
 
             try
             {
@@ -122,7 +122,7 @@ namespace SanBot
         {
             if (CurrentRunMode != RunMode.Shitlisted)
             {
-                PersonaData? persona = TargetPersonas
+                var persona = TargetPersonas
                     .Where(n => n.AgentComponentId == e.ComponentId)
                     .FirstOrDefault();
                 if (persona == null)
@@ -147,7 +147,7 @@ namespace SanBot
         {
             if (CurrentRunMode != RunMode.Shitlisted)
             {
-                PersonaData? persona = TargetPersonas
+                var persona = TargetPersonas
                     .Where(n => n.AgentComponentId == e.ComponentId)
                     .FirstOrDefault();
                 if (persona == null)
@@ -165,8 +165,8 @@ namespace SanBot
 
             if ((DateTime.Now - LastSpawn).TotalMilliseconds > MaxSpawnRateMs)
             {
-                float xyDistance = (float)Math.Sqrt(Math.Pow(2, newPosition.X - PreviousPosition.X) + Math.Pow(2, newPosition.Y - PreviousPosition.Y));
-                float distance = (newPosition - PreviousPosition).Length();
+                var xyDistance = (float)Math.Sqrt(Math.Pow(2, newPosition.X - PreviousPosition.X) + Math.Pow(2, newPosition.Y - PreviousPosition.Y));
+                var distance = (newPosition - PreviousPosition).Length();
                 DistanceSinceLastSpawn += distance;
 
                 if (DistanceSinceLastSpawn >= DistancedRequiredBeforeSpawningMore)
@@ -196,12 +196,12 @@ namespace SanBot
 
         private void Output(string str, string sender = nameof(Bot))
         {
-            string date = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+            var date = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
 
-            string finalOutput = "";
+            var finalOutput = "";
 
-            string[] lines = str.Replace("\r", "").Split("\n");
-            foreach (string line in lines)
+            var lines = str.Replace("\r", "").Split("\n");
+            foreach (var line in lines)
             {
                 finalOutput += $"{date} [{sender}] {line}{Environment.NewLine}";
             }
@@ -211,12 +211,12 @@ namespace SanBot
 
         private void ClientRegionMessages_OnRemoveUser(SanProtocol.ClientRegion.RemoveUser e)
         {
-            int unused = TargetPersonas.RemoveAll(n => n.SessionId == e.SessionId);
+            var unused = TargetPersonas.RemoveAll(n => n.SessionId == e.SessionId);
         }
 
         private void ClientRegionMessages_OnAddUser(SanProtocol.ClientRegion.AddUser e)
         {
-            PersonaData? persona = Driver.PersonasBySessionId
+            var persona = Driver.PersonasBySessionId
                 .Where(n => n.Key == e.SessionId)
                 .Select(n => n.Value)
                 .LastOrDefault();

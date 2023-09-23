@@ -1,16 +1,8 @@
-﻿using SanBot.Core;
+﻿using System.Security;
+using SanBot.Core;
 using SanBot.Database;
 using SanProtocol;
 using SanProtocol.ClientKafka;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Security;
-using System.Text;
-using System.Text.RegularExpressions;
-using System.Threading;
-using System.Threading.Tasks;
-using static SanWebApi.Json.WebApiResponse;
 
 namespace SanBot.BaseBot
 {
@@ -30,7 +22,7 @@ namespace SanBot.BaseBot
 
         public virtual void OnPacket(IPacket packet)
         {
-            switch(packet.MessageId)
+            switch (packet.MessageId)
             {
                 case SanProtocol.Messages.ClientKafkaMessages.LoginReply:
                     ClientKafkaMessages_OnLoginReply((SanProtocol.ClientKafka.LoginReply)packet);
@@ -46,7 +38,7 @@ namespace SanBot.BaseBot
             return Task.CompletedTask;
         }
 
-        public async virtual Task Start(SecureString username, SecureString password)
+        public virtual async Task Start(SecureString username, SecureString password)
         {
             await Driver.StartAsync(username, password);
 

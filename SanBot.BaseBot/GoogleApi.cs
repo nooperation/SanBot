@@ -1,12 +1,7 @@
 ﻿using Google.Cloud.TextToSpeech.V1;
 using NAudio.Wave;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace SanBot.Core
+namespace SanBot.BaseBot
 {
     internal class GoogleApi
     {
@@ -93,13 +88,13 @@ namespace SanBot.Core
             };
             var response = client.SynthesizeSpeech(input, voiceSelection, audioConfig);
 
-            using (MemoryStream mp3Stream = new MemoryStream())
+            using (var mp3Stream = new MemoryStream())
             {
                 response.AudioContent.WriteTo(mp3Stream);
                 mp3Stream.Position = 0;
 
-                WaveStream pcm = WaveFormatConversionStream.CreatePcmStream(new Mp3FileReader(mp3Stream));
-                byte[] bytes = new byte[pcm.Length];
+                var pcm = WaveFormatConversionStream.CreatePcmStream(new Mp3FileReader(mp3Stream));
+                var bytes = new byte[pcm.Length];
                 pcm.Position = 0;
                 pcm.Read(bytes, 0, (int)pcm.Length);
 
