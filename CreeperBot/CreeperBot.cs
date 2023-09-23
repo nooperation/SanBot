@@ -1,34 +1,20 @@
-﻿using SanWebApi.Json;
-using SanProtocol.ClientKafka;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Text;
-using System.Text.RegularExpressions;
-using System.Threading;
-using System.Threading.Tasks;
-using SanProtocol;
-using SanBot.Core;
-using System.Web;
-using SanProtocol.ClientVoice;
-using SanBot.Core.MessageHandlers;
+﻿using System.Collections.Concurrent;
 using System.Diagnostics;
-using static SanBot.Database.Services.PersonaService;
-using SanBot.Database;
-using Microsoft.CognitiveServices.Speech;
+using EchoBot;
 using Microsoft.CognitiveServices.Speech.Audio;
-using Concentus.Structs;
-using System.Collections.Concurrent;
-using SanProtocol.WorldState;
-using static EchoBot.VoiceConversation;
 using SanBot.BaseBot;
+using SanBot.Core;
+using SanProtocol;
+using SanProtocol.ClientKafka;
+using SanProtocol.ClientVoice;
+using static EchoBot.VoiceConversation;
 using static SanProtocol.Messages;
 
-namespace EchoBot
+namespace CreeperBot
 {
     public class CreeperBot : SimpleBot
     {
-        public Driver Driver { get; set; }
+        public new Driver Driver { get; set; }
 
         public CreeperBot()
         {
@@ -52,14 +38,14 @@ namespace EchoBot
             Driver = new Driver();
             Driver.OnOutput += Driver_OnOutput;
 
-           // Driver.RegionToJoin = new RegionDetails("nop", "flat2");
+            // Driver.RegionToJoin = new RegionDetails("nop", "flat2");
             Driver.RegionToJoin = new RegionDetails("sansar-studios", "sansar-park");
             Driver.AutomaticallySendClientReady = false;
             Driver.IgnoreRegionServer = true;
             Driver.UseVoice = false;
             Driver.StartAsync(config).Wait();
 
-            Stopwatch watch = new Stopwatch();
+            var watch = new Stopwatch();
 
             _IsConversationThreadRunning = true;
             ConversationThread = new Thread(new ThreadStart(ConversationThreadEntrypoint));
@@ -90,19 +76,19 @@ namespace EchoBot
             switch (packet.MessageId)
             {
                 case ClientKafkaMessages.RegionChat:
-                    ClientKafkaMessages_OnRegionChat((SanProtocol.ClientKafka.RegionChat)packet);
+                    ClientKafkaMessages_OnRegionChat((RegionChat)packet);
                     break;
                 case ClientKafkaMessages.RelationshipTable:
-                    ClientKafkaMessages_OnRelationshipTable((SanProtocol.ClientKafka.RelationshipTable)packet);
+                    ClientKafkaMessages_OnRelationshipTable((RelationshipTable)packet);
                     break;
                 case ClientKafkaMessages.PrivateChat:
-                    ClientKafkaMessages_OnPrivateChat((SanProtocol.ClientKafka.PrivateChat)packet);
+                    ClientKafkaMessages_OnPrivateChat((PrivateChat)packet);
                     break;
                 case ClientVoiceMessages.LocalAudioData:
-                    ClientVoiceMessages_OnLocalAudioData((SanProtocol.ClientVoice.LocalAudioData)packet);
+                    ClientVoiceMessages_OnLocalAudioData((LocalAudioData)packet);
                     break;
                 case ClientVoiceMessages.LocalAudioStreamState:
-                    ClientVoiceMessages_OnLocalAudioStreamState((SanProtocol.ClientVoice.LocalAudioStreamState)packet);
+                    ClientVoiceMessages_OnLocalAudioStreamState((LocalAudioStreamState)packet);
                     break;
             }
         }
@@ -111,13 +97,13 @@ namespace EchoBot
 
         private void ClientVoiceMessages_OnLocalAudioStreamState(LocalAudioStreamState e)
         {
-            if(!IsInitialized)
+            if (!IsInitialized)
             {
                 SetVoicePosition(-1, 93, 12);
                 IsInitialized = true;
             }
 
-            if(e.Mute == 1)
+            if (e.Mute == 1)
             {
                 Console.WriteLine($"{e.AgentControllerId} is active");
             }
@@ -130,7 +116,7 @@ namespace EchoBot
         private void SetVoicePosition(float x, float y, float z)
         {
             Console.WriteLine($"SetVoicePosition: {x}, {y}, {z}");
-            Driver.VoiceClient.SendPacket(new SanProtocol.ClientVoice.LocalAudioPosition(
+            Driver.VoiceClient.SendPacket(new LocalAudioPosition(
                 Driver.VoiceClient.CurrentSequence++,
                 Driver.VoiceClient.InstanceId,
                 new List<float>()
@@ -145,31 +131,31 @@ namespace EchoBot
 
         private void ClientKafkaMessages_OnPrivateChat(PrivateChat e)
         {
-            if(!Driver.VoiceClient.GotVersionPacket)
+            if (!Driver.VoiceClient.GotVersionPacket)
             {
                 Output("[Old] Private chat: " + e.Message);
                 return;
             }
 
-            if(e.FromPersonaId != "1c3aad2b02584c90a6040da35a9743f9")
+            if (e.FromPersonaId != "1c3aad2b02584c90a6040da35a9743f9")
             {
                 return;
             }
 
-            if(e.Message == "init")
+            if (e.Message == "init")
             {
                 SetVoicePosition(-1, 93, 12);
             }
             if (e.Message.StartsWith("say"))
             {
                 var message = e.Message[3..].Trim();
-                this.Driver.SendChatMessage(message);
+                Driver.SendChatMessage(message);
             }
             if (e.Message.StartsWith("goto "))
             {
                 var message = e.Message[4..].Trim();
                 var parts = message.Split(' ');
-                if(parts.Length == 3)
+                if (parts.Length == 3)
                 {
                     var x = float.Parse(parts[0]);
                     var y = float.Parse(parts[1]);
@@ -177,7 +163,7 @@ namespace EchoBot
 
                     SetVoicePosition(x, y, z);
                 }
-                this.Driver.SendChatMessage(message);
+                Driver.SendChatMessage(message);
             }
         }
 
@@ -199,17 +185,17 @@ namespace EchoBot
             // }
 
             Output(e.ToString());
-            if(e.FromOther == 1 && e.Status == 2)
+            if (e.FromOther == 1 && e.Status == 2)
             {
                 Console.WriteLine("Unblocking user " + e.Other);
-                Driver.KafkaClient.SendPacket(new SanProtocol.ClientKafka.RelationshipOperation(
+                Driver.KafkaClient.SendPacket(new RelationshipOperation(
                     e.Other, 3
                 ));
             }
             else if (e.FromOther == 1 && e.Status == 0)
             {
                 Console.WriteLine("Accepting invite from " + e.Other);
-                Driver.KafkaClient.SendPacket(new SanProtocol.ClientKafka.RelationshipOperation(
+                Driver.KafkaClient.SendPacket(new RelationshipOperation(
                     e.Other, 0
                 ));
             }
@@ -231,9 +217,9 @@ namespace EchoBot
             }
 
 
-            if(!AgentControllerToNameMap.ContainsKey(e.AgentControllerId))
+            if (!AgentControllerToNameMap.ContainsKey(e.AgentControllerId))
             {
-                if(persona != null)
+                if (persona != null)
                 {
                     AgentControllerToNameMap.Add(e.AgentControllerId, $"{persona.Name} ({persona.Handle})");
                 }
@@ -276,7 +262,8 @@ namespace EchoBot
         public ConcurrentDictionary<uint, VoiceConversation> ConversationsByAgentControllerId { get; set; } = new ConcurrentDictionary<uint, VoiceConversation>();
 
         public Thread ConversationThread { get; set; }
-        volatile bool _IsConversationThreadRunning = false;
+
+        private readonly bool _IsConversationThreadRunning = false;
         public void ConversationThreadEntrypoint()
         {
             while (_IsConversationThreadRunning)
@@ -293,7 +280,7 @@ namespace EchoBot
 
         public class VoiceAudioStream : PullAudioInputStreamCallback
         {
-            private MemoryStream ms;
+            private readonly MemoryStream ms;
 
             public VoiceAudioStream(byte[] data)
             {
@@ -316,12 +303,12 @@ namespace EchoBot
             return (float)Math.Sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2) + (z1 - z2) * (z1 - z2));
         }
 
-        private void ClientVoiceMessages_OnLocalAudioData(SanProtocol.ClientVoice.LocalAudioData e)
+        private void ClientVoiceMessages_OnLocalAudioData(LocalAudioData e)
         {
             // MAIN THREAD
             if (!ConversationsByAgentControllerId.ContainsKey(e.AgentControllerId))
             {
-                ConversationsByAgentControllerId[e.AgentControllerId] = new VoiceConversation(new VoiceConversation.VoicePersona() { AgentControllerId = e.AgentControllerId }, this);
+                ConversationsByAgentControllerId[e.AgentControllerId] = new VoiceConversation(new VoicePersona() { AgentControllerId = e.AgentControllerId }, this);
                 ConversationsByAgentControllerId[e.AgentControllerId].OnSpeechToText += ConversationBot_OnSpeechToText;
             }
             var conversation = ConversationsByAgentControllerId[e.AgentControllerId];
@@ -329,7 +316,7 @@ namespace EchoBot
             conversation.AddVoiceData(e.Data);
         }
 
-        private void ConversationBot_OnSpeechToText(Object? source, SpeechToTextItem result)
+        private void ConversationBot_OnSpeechToText(object? source, SpeechToTextItem result)
         {
             // MAIN THREAD
             if (result.Text.Length == 0)
@@ -337,7 +324,7 @@ namespace EchoBot
                 return;
             }
 
-            if(result.Persona.AgentControllerId != null && AgentControllerToNameMap.ContainsKey(result.Persona.AgentControllerId.Value))
+            if (result.Persona.AgentControllerId != null && AgentControllerToNameMap.ContainsKey(result.Persona.AgentControllerId.Value))
             {
                 Console.WriteLine($"{AgentControllerToNameMap[result.Persona.AgentControllerId.Value]}): {result.Text}");
             }

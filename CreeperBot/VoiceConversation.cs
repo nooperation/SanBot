@@ -1,23 +1,13 @@
-﻿using Concentus.Structs;
-using Microsoft.CognitiveServices.Speech.Audio;
+﻿using System.Collections.Concurrent;
+using Concentus.Structs;
 using Microsoft.CognitiveServices.Speech;
+using Microsoft.CognitiveServices.Speech.Audio;
 using NAudio.Wave;
-using SanBot.Core;
 using SanProtocol.ClientVoice;
-using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using static EchoBot.CreeperBot;
+using static CreeperBot.CreeperBot;
 using static SanBot.Core.Driver;
-using Newtonsoft.Json;
-using System.Text.Json;
-using static SanWebApi.Json.OrderItemResponse;
-using System.Threading.Channels;
 
-namespace EchoBot
+namespace CreeperBot
 {
     public class VoiceConversation
     {
@@ -37,12 +27,12 @@ namespace EchoBot
         public int LoudSamplesInBuffer { get; set; } = 0;
 
         public List<byte[]> VoiceBuffer { get; set; } = new List<byte[]>();
-        public ConcurrentQueue<VoiceBufferQueueItem> SharedVoiceBufferQueue = new ConcurrentQueue<VoiceBufferQueueItem>();
+        public ConcurrentQueue<VoiceBufferQueueItem> SharedVoiceBufferQueue = new();
 
         public VoiceConversation(VoicePersona persona, CreeperBot bot)
         {
-            this.Bot = bot;
-            this.Persona = persona;
+            Bot = bot;
+            Persona = persona;
         }
 
         public void AddVoiceData(AudioData data)
@@ -87,7 +77,7 @@ namespace EchoBot
         public void Poll()
         {
             // MAIN THREAD
-            while (SharedSpeechToTextQueue.TryDequeue(out SpeechToTextItem? result))
+            while (SharedSpeechToTextQueue.TryDequeue(out var result))
             {
                 OnSpeechToText?.Invoke(this, result);
             }
@@ -162,7 +152,7 @@ namespace EchoBot
                 Directory.CreateDirectory(outputDirectory);
             }
 
-            using (MemoryStream ms = new MemoryStream())
+            using (var ms = new MemoryStream())
             {
                 var decoder = OpusDecoder.Create(kFrequency, 1);
                 var decompressedBuffer = new short[kFrameSize * 2];
@@ -180,11 +170,11 @@ namespace EchoBot
                     var maxMultiplier = short.MaxValue / peak;
                     var volume = Math.Min(maxMultiplier, 8);
                      */
-                    for (int i = 0; i < decompressedBuffer.Length; i++)
+                    for (var i = 0; i < decompressedBuffer.Length; i++)
                     {
                         decompressedBuffer[i] *= 2;
                     }
-                   
+
 
                     var decompressedBufferBytes = new byte[result * 2];
                     Buffer.BlockCopy(decompressedBuffer, 0, decompressedBufferBytes, 0, result * 2);
@@ -198,8 +188,10 @@ namespace EchoBot
                 {
                     using (WaveStream waveStream = new RawSourceWaveStream(ms, new WaveFormat(kFrequency, 16, 1)))
                     {
-                        var volumeWaveProvider = new VolumeWaveProvider16(waveStream);
-                        volumeWaveProvider.Volume = 4.0f;
+                        var volumeWaveProvider = new VolumeWaveProvider16(waveStream)
+                        {
+                            Volume = 4.0f
+                        };
 
                         waveOut.Init(volumeWaveProvider);
 
@@ -208,10 +200,10 @@ namespace EchoBot
 
                         while (waveOut.PlaybackState == PlaybackState.Playing)
                         {
-                            System.Threading.Thread.Sleep(10);
+                            Thread.Sleep(10);
                         }
 
-                        using (WaveFileWriter writer = new WaveFileWriter(outputDirectory + "/" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + ".mp3", waveStream.WaveFormat))
+                        using (var writer = new WaveFileWriter(outputDirectory + "/" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + ".mp3", waveStream.WaveFormat))
                         {
                             ms.Seek(0, SeekOrigin.Begin);
                             var bytes = ms.ToArray();
@@ -234,7 +226,7 @@ namespace EchoBot
                 Directory.CreateDirectory(outputDirectory);
             }
 
-            MemoryStream ms = new MemoryStream();
+            var ms = new MemoryStream();
 
             var decoder = OpusDecoder.Create(kFrequency, 1);
             var decompressedBuffer = new short[kFrameSize * 2];
@@ -244,7 +236,7 @@ namespace EchoBot
                 var numSamples = OpusPacketInfo.GetNumSamples(decoder, item, 0, item.Length);
                 var result = decoder.Decode(item, 0, item.Length, decompressedBuffer, 0, numSamples);
 
-                for (int i = 0; i < decompressedBuffer.Length; i++)
+                for (var i = 0; i < decompressedBuffer.Length; i++)
                 {
                     decompressedBuffer[i] *= 2;
                 }
@@ -259,8 +251,10 @@ namespace EchoBot
 
             var waveOut = new WaveOutEvent();
             var waveStream = new RawSourceWaveStream(ms, new WaveFormat(kFrequency, 16, 1));
-            var volumeWaveProvider = new VolumeWaveProvider16(waveStream);
-            volumeWaveProvider.Volume = 4.0f;
+            var volumeWaveProvider = new VolumeWaveProvider16(waveStream)
+            {
+                Volume = 4.0f
+            };
 
             waveOut.Init(volumeWaveProvider);
 
@@ -284,12 +278,12 @@ namespace EchoBot
 
         public class SoundPlayerData
         {
-            public MemoryStream Stream { get; set; }
-            public WaveOutEvent WaveOut { get; set; }
-            public RawSourceWaveStream WaveStream { get; set; }
+            public MemoryStream? Stream { get; set; }
+            public WaveOutEvent? WaveOut { get; set; }
+            public RawSourceWaveStream? WaveStream { get; set; }
         }
 
-        List<SoundPlayerData> events = new List<SoundPlayerData>();
+        private readonly List<SoundPlayerData> events = new();
         public void CheckSoundQueue()
         {
             var eventsToRemove = events.Where(n => n.WaveOut.PlaybackState == PlaybackState.Stopped).ToList();
@@ -309,7 +303,7 @@ namespace EchoBot
             const int kFrameSize = 960;
             const int kFrequency = 48000;
 
-            using (MemoryStream ms = new MemoryStream())
+            using (var ms = new MemoryStream())
             {
                 var decoder = OpusDecoder.Create(kFrequency, 1);
                 var decompressedBuffer = new short[kFrameSize * 2];
@@ -347,25 +341,25 @@ namespace EchoBot
 
         public class TranslationResult
         {
-            public Detectedlanguage detectedLanguage { get; set; }
-            public Translation[] translations { get; set; }
+            public Detectedlanguage? detectedLanguage { get; set; }
+            public Translation[]? translations { get; set; }
         }
 
         public class Detectedlanguage
         {
-            public string language { get; set; }
+            public string? language { get; set; }
             public float score { get; set; }
         }
 
         public class Translation
         {
-            public string text { get; set; }
-            public string to { get; set; }
+            public string? text { get; set; }
+            public string? to { get; set; }
         }
 
         public static string? SpeechToTextAzure(byte[] rawWavBytes)
         {
-            var azureConfigPath = Path.Join(Driver.GetSanbotConfigPath(), "azure.json");
+            var azureConfigPath = Path.Join(GetSanbotConfigPath(), "azure.json");
             var configFileContents = File.ReadAllText(azureConfigPath);
             var azureConfig = System.Text.Json.JsonSerializer.Deserialize<AzureConfigPayload>(configFileContents);
             if (azureConfig == null || azureConfig.key1.Length == 0 || azureConfig.region.Length == 0)
@@ -398,8 +392,8 @@ namespace EchoBot
                 public int seek { get; set; }
                 public float start { get; set; }
                 public float end { get; set; }
-                public string text { get; set; }
-                public int[] tokens { get; set; }
+                public string? text { get; set; }
+                public int[]? tokens { get; set; }
                 public float temperature { get; set; }
                 public float avg_logprob { get; set; }
                 public float compression_ratio { get; set; }
@@ -407,9 +401,9 @@ namespace EchoBot
             }
 
             public bool Success { get; set; }
-            public string Text { get; set; }
-            public Segment[] Segments { get; set; }
-            public string Language { get; set; }
+            public string? Text { get; set; }
+            public Segment[]? Segments { get; set; }
+            public string? Language { get; set; }
         }
 
         public static string? SpeechToTextWhisper(byte[] rawWavBytes)
@@ -468,18 +462,18 @@ namespace EchoBot
 
             CheckSoundQueue();
 
-            while (SharedVoiceBufferQueue.TryDequeue(out VoiceBufferQueueItem voiceBuffer))
+            while (SharedVoiceBufferQueue.TryDequeue(out var voiceBuffer))
             {
                 if (voiceBuffer.LoudSamplesInBuffer < 15)
                 {
                     return true;
                 }
 
-              //  PlayOpusSound(voiceBuffer.VoiceBuffer, 16000, 16, 1);
+                //  PlayOpusSound(voiceBuffer.VoiceBuffer, 16000, 16, 1);
                 PlayOpusSoundB(voiceBuffer.VoiceBuffer, 16000, 16, 1);
 
-               // var wavBytes = OpusToRaw(voiceBuffer.VoiceBuffer, 16000, 16, 1);
-               // SpeechToText(wavBytes);
+                // var wavBytes = OpusToRaw(voiceBuffer.VoiceBuffer, 16000, 16, 1);
+                // SpeechToText(wavBytes);
             }
 
             return true;

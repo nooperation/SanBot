@@ -1,8 +1,8 @@
-﻿namespace EchoBot
+﻿namespace CreeperBot
 {
     internal class Program
     {
-        static void Main(string[] args)
+        private static void Main(string[] args)
         {
             new CreeperBot();
         }
