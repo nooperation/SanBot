@@ -65,11 +65,11 @@ namespace EchoBot
         public EchoBot()
         {
             ConfigFile config;
-            string sanbotPath = Path.Join(
+            var sanbotPath = Path.Join(
                 Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                 "SanBot"
             );
-            string configPath = Path.Join(sanbotPath, "SanBot.config.json");
+            var configPath = Path.Join(sanbotPath, "SanBot.config.json");
 
             try
             {
@@ -80,19 +80,18 @@ namespace EchoBot
                 throw new Exception("Missing or invalid config.json", ex);
             }
 
+            Driver.AutomaticallySendClientReady = true;
+            Driver.UseVoice = true;
+            Driver.IgnoreRegionServer = false;
+
             Start(config.Username, config.Password).Wait();
 
-            voiceDumpTimer = new Timer(new TimerCallback(CheckVoiceDump), null, 0, 1000);
+            //  voiceDumpTimer = new Timer(new TimerCallback(CheckVoiceDump), null, 0, 1000);
         }
 
         public override Task Init()
         {
-            Task unused = base.Init();
-
-            Driver.AutomaticallySendClientReady = true;
-            Driver.UseVoice = true;
-            Driver.OnOutput += Driver_OnOutput;
-
+            _ = base.Init();
             return Task.CompletedTask;
         }
 
@@ -131,7 +130,7 @@ namespace EchoBot
 
         private void ClientVoiceMessages_OnLocalAudioPosition(LocalAudioPosition e)
         {
-            PersonaData? persona = TargetPersonas
+            var persona = TargetPersonas
                 .Where(n => n.AgentControllerId == e.AgentControllerId)
                 .FirstOrDefault();
             if (persona == null)
@@ -151,7 +150,7 @@ namespace EchoBot
 
         private void ClientVoiceMessages_OnLocalAudioStreamState(LocalAudioStreamState e)
         {
-            PersonaData? persona = TargetPersonas
+            var persona = TargetPersonas
                 .Where(n => n.AgentControllerId == e.AgentControllerId)
                 .FirstOrDefault();
             if (persona == null)
@@ -171,7 +170,7 @@ namespace EchoBot
 
         private void WorldStateMessages_OnCreateAgentController(SanProtocol.WorldState.CreateAgentController e)
         {
-            PersonaData? persona = TargetPersonas
+            var persona = TargetPersonas
                 .Where(n => n.AgentControllerId == e.AgentControllerId)
                 .FirstOrDefault();
             if (persona == null)
@@ -194,21 +193,21 @@ namespace EchoBot
                 const int kFrameSize = 960;
                 const int kFrequency = 48000;
 
-                OpusDecoder decoder = OpusDecoder.Create(kFrequency, 1);
-                short[] decompressedBuffer = new short[kFrameSize * 2];
+                var decoder = OpusDecoder.Create(kFrequency, 1);
+                var decompressedBuffer = new short[kFrameSize * 2];
 
-                foreach (byte[] item in VoiceBuffer)
+                foreach (var item in VoiceBuffer)
                 {
-                    int numSamples = OpusPacketInfo.GetNumSamples(decoder, item, 0, item.Length);
-                    int result = decoder.Decode(item, 0, item.Length, decompressedBuffer, 0, numSamples);
+                    var numSamples = OpusPacketInfo.GetNumSamples(decoder, item, 0, item.Length);
+                    var result = decoder.Decode(item, 0, item.Length, decompressedBuffer, 0, numSamples);
 
-                    byte[] decompressedBufferBytes = new byte[result * 2];
+                    var decompressedBufferBytes = new byte[result * 2];
                     Buffer.BlockCopy(decompressedBuffer, 0, decompressedBufferBytes, 0, result * 2);
 
                     ms.Write(decompressedBufferBytes);
                 }
 
-                long unused = ms.Seek(0, SeekOrigin.Begin);
+                var unused = ms.Seek(0, SeekOrigin.Begin);
                 using RawSourceWaveStream rs = new(ms, new WaveFormat(kFrequency, 16, 1));
                 using MemoryStream wavStream = new();
                 WaveFileWriter.WriteWavFileToStream(wavStream, rs);
@@ -221,7 +220,7 @@ namespace EchoBot
 
         private void WorldStateMessages_OnDestroyCluster(SanProtocol.WorldState.DestroyCluster e)
         {
-            int unused = TargetPersonas.RemoveAll(n => n.ClusterId == e.ClusterId);
+            var unused = TargetPersonas.RemoveAll(n => n.ClusterId == e.ClusterId);
         }
 
         public List<byte[]> VoiceBuffer { get; set; } = new List<byte[]>();
@@ -240,7 +239,7 @@ namespace EchoBot
                 return;
             }
 
-            PersonaData? persona = TargetPersonas
+            var persona = TargetPersonas
                 .Where(n => n.AgentControllerId == e.AgentControllerId)
                 .FirstOrDefault();
             if (persona == null)
@@ -291,12 +290,12 @@ namespace EchoBot
 
         public void Output(string str, string sender = nameof(EchoBot))
         {
-            string date = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+            var date = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
 
-            string finalOutput = "";
+            var finalOutput = "";
 
-            string[] lines = str.Replace("\r", "").Split("\n");
-            foreach (string line in lines)
+            var lines = str.Replace("\r", "").Split("\n");
+            foreach (var line in lines)
             {
                 finalOutput += $"{date} [{sender}] {line}{Environment.NewLine}";
             }
@@ -306,12 +305,12 @@ namespace EchoBot
 
         private void ClientRegionMessages_OnRemoveUser(SanProtocol.ClientRegion.RemoveUser e)
         {
-            int unused = TargetPersonas.RemoveAll(n => n.SessionId == e.SessionId);
+            var unused = TargetPersonas.RemoveAll(n => n.SessionId == e.SessionId);
 
             // Dump the remaining buffer for this user if we're currently listening to them
             if (agentControllerIdImListeningTo != null)
             {
-                PersonaData? persona = Driver.PersonasBySessionId
+                var persona = Driver.PersonasBySessionId
                     .Where(n => n.Key == e.SessionId)
                     .Select(n => n.Value)
                     .LastOrDefault();
@@ -333,7 +332,7 @@ namespace EchoBot
 
         private void ClientRegionMessages_OnAddUser(SanProtocol.ClientRegion.AddUser e)
         {
-            PersonaData? persona = Driver.PersonasBySessionId
+            var persona = Driver.PersonasBySessionId
                 .Where(n => n.Key == e.SessionId)
                 .Select(n => n.Value)
                 .LastOrDefault();

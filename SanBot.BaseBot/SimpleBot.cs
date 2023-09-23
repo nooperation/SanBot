@@ -117,25 +117,6 @@ namespace SanBot.BaseBot
 
             Output("Logged into region: " + e.ToString());
 
-            var regionAddress = Driver.CurrentInstanceId!.Format();
-            Driver.KafkaClient.SendPacket(new SanProtocol.ClientKafka.EnterRegion(
-                regionAddress
-            ));
-
-            Driver.RegionClient.SendPacket(new SanProtocol.ClientRegion.ClientDynamicReady(
-                //new List<float>() { (float)(radius*Math.Sin(angleRads)), (float)(radius * Math.Cos(angleRads)), 5.0f },
-                new List<float>() { 11.695435f, 32.8338f, 17.2235107f },
-                new List<float>() { 0, 0, 0, 0 }, // upside down spin ish
-                new SanUUID(Driver.MyPersonaDetails!.Id),
-                "",
-                1,
-                1
-            ));
-
-            Driver.RegionClient.SendPacket(new SanProtocol.ClientRegion.ClientStaticReady(
-                1
-            ));
-
             OnRegionLoginSuccess(e);
         }
 
@@ -151,7 +132,6 @@ namespace SanBot.BaseBot
                 throw new Exception($"KafkaClient failed to login: {e.Message}");
             }
 
-
             Output("Checking categories...");
             var marketplaceCategories = Driver.WebApi.GetMarketplaceCategoriesAsync().Result;
             Output($"Categories = " + marketplaceCategories);
@@ -161,7 +141,6 @@ namespace SanBot.BaseBot
             Output($"Balance = {balanceResponse.Data.Balance} {balanceResponse.Data.Currency} (Earned={balanceResponse.Data.Earned} General={balanceResponse.Data.General})");
 
             Output("Kafka client logged in successfully");
-          //  Driver.JoinRegion("sansar-studios", "sansar-park").Wait();
 
             OnKafkaLoginSuccess(e);
         }
