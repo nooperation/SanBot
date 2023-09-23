@@ -4,7 +4,8 @@
     {
         private static void Main(string[] args)
         {
-            new CreeperBot();
+            var bot = new CreeperBot();
+            bot.Start();
         }
     }
 }

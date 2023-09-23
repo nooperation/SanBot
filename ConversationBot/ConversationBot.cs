@@ -328,8 +328,7 @@ Height: {promptResult.ResultInfo.height}
 
         private void ClientKafkaMessages_OnRegionChat(RegionChat e)
         {
-            var persona = Driver.ResolvePersonaId(e.FromPersonaId).Result;
-            persona ??= new SanBot.Database.Services.PersonaService.PersonaDto()
+            var persona = Driver.ResolvePersonaId(e.FromPersonaId).Result ?? new SanBot.Database.Services.PersonaService.PersonaDto()
             {
                 Handle = ".UNKNOWN",
                 Id = new Guid(),

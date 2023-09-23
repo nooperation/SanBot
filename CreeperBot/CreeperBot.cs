@@ -1,28 +1,27 @@
 ﻿using System.Collections.Concurrent;
 using System.Diagnostics;
-using EchoBot;
-using Microsoft.CognitiveServices.Speech.Audio;
 using SanBot.BaseBot;
 using SanBot.Core;
 using SanProtocol;
 using SanProtocol.ClientKafka;
 using SanProtocol.ClientVoice;
-using static EchoBot.VoiceConversation;
+using static CreeperBot.VoiceConversation;
 using static SanProtocol.Messages;
 
 namespace CreeperBot
 {
     public class CreeperBot : SimpleBot
     {
-        public new Driver Driver { get; set; }
+        public ConcurrentDictionary<uint, VoiceConversation> ConversationsByAgentControllerId { get; set; } = new ConcurrentDictionary<uint, VoiceConversation>();
 
-        public CreeperBot()
+        public Thread? ConversationThread { get; set; }
+
+        private bool _IsConversationThreadRunning = false;
+
+        public override Task Start()
         {
             ConfigFile config;
-            var sanbotPath = Path.Join(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "SanBot"
-            );
+            var sanbotPath = Driver.GetSanbotConfigPath();
             var configPath = Path.Join(sanbotPath, "CreeperBot.config.json");
 
             try
@@ -34,16 +33,12 @@ namespace CreeperBot
                 throw new Exception("Missing or invalid config.json", ex);
             }
 
-
-            Driver = new Driver();
-            Driver.OnOutput += Driver_OnOutput;
-
-            // Driver.RegionToJoin = new RegionDetails("nop", "flat2");
-            Driver.RegionToJoin = new RegionDetails("sansar-studios", "sansar-park");
+            Driver.RegionToJoin = new RegionDetails("nop", "flat");
+            //Driver.RegionToJoin = new RegionDetails("sansar-studios", "sansar-park");
             Driver.AutomaticallySendClientReady = false;
             Driver.IgnoreRegionServer = true;
             Driver.UseVoice = false;
-            Driver.StartAsync(config).Wait();
+            Driver.StartAsync(config.Username, config.Password).Wait();
 
             var watch = new Stopwatch();
 
@@ -63,9 +58,6 @@ namespace CreeperBot
                     Thread.Yield();
                 }
             }
-
-            _IsConversationThreadRunning = false;
-            ConversationThread.Join();
         }
 
 
@@ -99,7 +91,7 @@ namespace CreeperBot
         {
             if (!IsInitialized)
             {
-                SetVoicePosition(-1, 93, 12);
+                SetVoicePosition(0, 0, 0);
                 IsInitialized = true;
             }
 
@@ -205,7 +197,13 @@ namespace CreeperBot
 
         private void ClientKafkaMessages_OnRegionChat(RegionChat e)
         {
-            var persona = Driver.ResolvePersonaId(e.FromPersonaId).Result;
+            var persona = Driver.ResolvePersonaId(e.FromPersonaId).Result ?? new SanBot.Database.Services.PersonaService.PersonaDto()
+            {
+                Handle = ".UNKNOWN",
+                Id = new Guid(),
+                Name = ".UNKNOWN"
+            };
+
             if (e.Message == "")
             {
                 return;
@@ -231,11 +229,11 @@ namespace CreeperBot
 
             if (!Driver.VoiceClient.GotVersionPacket)
             {
-                Output($"[OLD] {persona.Name}: {e.Message}");
+                Output($"[OLD] {persona!.Name}: {e.Message}");
                 return;
             }
 
-            Output($"{persona.Name} [{persona.Handle}]: {e.Message}");
+            Output($"{persona!.Name} [{persona.Handle}]: {e.Message}");
         }
 
         private void Driver_OnOutput(object? sender, string message)
@@ -258,12 +256,6 @@ namespace CreeperBot
             Console.Write(finalOutput);
         }
 
-
-        public ConcurrentDictionary<uint, VoiceConversation> ConversationsByAgentControllerId { get; set; } = new ConcurrentDictionary<uint, VoiceConversation>();
-
-        public Thread ConversationThread { get; set; }
-
-        private readonly bool _IsConversationThreadRunning = false;
         public void ConversationThreadEntrypoint()
         {
             while (_IsConversationThreadRunning)
@@ -278,60 +270,16 @@ namespace CreeperBot
             }
         }
 
-        public class VoiceAudioStream : PullAudioInputStreamCallback
-        {
-            private readonly MemoryStream ms;
-
-            public VoiceAudioStream(byte[] data)
-            {
-                ms = new MemoryStream(data);
-            }
-
-            public override void Close()
-            {
-                ms.Close();
-            }
-
-            public override int Read(byte[] dataBuffer, uint size)
-            {
-                return ms.Read(dataBuffer, 0, (int)size);
-            }
-        }
-
-        public static float Distance(float x1, float x2, float y1, float y2, float z1, float z2)
-        {
-            return (float)Math.Sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2) + (z1 - z2) * (z1 - z2));
-        }
-
         private void ClientVoiceMessages_OnLocalAudioData(LocalAudioData e)
         {
             // MAIN THREAD
             if (!ConversationsByAgentControllerId.ContainsKey(e.AgentControllerId))
             {
                 ConversationsByAgentControllerId[e.AgentControllerId] = new VoiceConversation(new VoicePersona() { AgentControllerId = e.AgentControllerId }, this);
-                ConversationsByAgentControllerId[e.AgentControllerId].OnSpeechToText += ConversationBot_OnSpeechToText;
             }
             var conversation = ConversationsByAgentControllerId[e.AgentControllerId];
 
             conversation.AddVoiceData(e.Data);
-        }
-
-        private void ConversationBot_OnSpeechToText(object? source, SpeechToTextItem result)
-        {
-            // MAIN THREAD
-            if (result.Text.Length == 0)
-            {
-                return;
-            }
-
-            if (result.Persona.AgentControllerId != null && AgentControllerToNameMap.ContainsKey(result.Persona.AgentControllerId.Value))
-            {
-                Console.WriteLine($"{AgentControllerToNameMap[result.Persona.AgentControllerId.Value]}): {result.Text}");
-            }
-            else
-            {
-                Console.WriteLine($"{result.Persona.AgentControllerId}): {result.Text}");
-            }
         }
     }
 }
