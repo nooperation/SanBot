@@ -92,7 +92,7 @@ namespace CrowdBot
             try
             {
                 var configFileContents = File.ReadAllText(configPath);
-                BotConfigs = Newtonsoft.Json.JsonConvert.DeserializeObject<CrowdBotConfig>(configFileContents);
+                BotConfigs = Newtonsoft.Json.JsonConvert.DeserializeObject<CrowdBotConfig>(configFileContents) ?? throw new Exception("Bad config");
             }
             catch (Exception ex)
             {
@@ -143,6 +143,17 @@ namespace CrowdBot
 
         public void AddBot()
         {
+            if (BotConfigs.bots == null)
+            {
+                Console.WriteLine("Cannot add bot - no bots defined");
+                return;
+            }
+            if (CurrentBotIndex >= BotConfigs.bots.Count)
+            {
+                Console.WriteLine("Cannot add bot - ran out of bots");
+                return;
+            }
+
             var config = BotConfigs.bots[CurrentBotIndex];
             config.SavedAnimation = null;
             config.SavedTransform = null;
@@ -156,6 +167,12 @@ namespace CrowdBot
         public void AddBot(CrowdBotConfig.BotConfig config)
         {
             var botId = config.Id;
+            if (botId == null)
+            {
+                Console.WriteLine("Cannot add bot - botId is null");
+                return;
+            }
+
             var bot = new CrowdBot(botId, config.SavedTransform, config.SavedControllerInput, config.SavedAnimation)
             {
                 Voice = Voices[Bots.Count % Voices.Count],
@@ -180,6 +197,7 @@ namespace CrowdBot
                 Password = new NetworkCredential("", config.Credentials.Password).SecurePassword
             };
 
+            // Don't care about waiting for this one
             bot.Start(credentials);
         }
 
@@ -195,6 +213,12 @@ namespace CrowdBot
 
         public void Bot_OnRequestRestartBot(object? sender, EventArgs e)
         {
+            if (BotConfigs.bots == null)
+            {
+                Console.WriteLine("Bot_OnRequestRestartBot: No bots defined");
+                return;
+            }
+
             if (sender is not CrowdBot bot)
             {
                 Console.WriteLine("Bot_OnRequestRestartBot: Bad bot source");

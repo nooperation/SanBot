@@ -1,13 +1,6 @@
-﻿using Newtonsoft.Json;
+﻿using System.Text;
 using OpenAI_API;
 using SanBot.Core;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using static EchoBot.VoiceConversation;
-using static SanBot.Core.Driver;
 
 namespace ConversationBot
 {
@@ -15,13 +8,13 @@ namespace ConversationBot
     {
         public class OpenAiConfigPayload
         {
-            public string Key { get; set; }
+            public string? Key { get; set; }
         }
 
         public class ConversationData
         {
-            public string Query { get; set; }
-            public string Response { get; set; }
+            public string? Query { get; set; }
+            public string? Response { get; set; }
         }
         public static async Task<string> RunPrompt(string initialPrompt, string query, string personaName, List<ConversationData> previous)
         {

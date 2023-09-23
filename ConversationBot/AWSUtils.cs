@@ -1,12 +1,6 @@
 ﻿using Amazon.Runtime.CredentialManagement;
-using Amazon.Runtime;
-using Amazon.S3.Transfer;
 using Amazon.S3;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using Amazon.S3.Transfer;
 using static ConversationBot.ImageGenerator;
 
 namespace ConversationBot
@@ -19,8 +13,7 @@ namespace ConversationBot
         public static AmazonS3Client GetS3Client()
         {
             var chain = new CredentialProfileStoreChain();
-            AWSCredentials awsCredentials;
-            if (chain.TryGetAWSCredentials(_profile, out awsCredentials))
+            if (chain.TryGetAWSCredentials(_profile, out var awsCredentials))
             {
                 return new AmazonS3Client(awsCredentials);
             }
@@ -35,7 +28,7 @@ namespace ConversationBot
                 throw new Exception("Attempted to upload bad file");
             }
 
-            return await AWSUtils.UploadImage(data.ImageBytes, data.SafeName, data.Prompt);
+            return await AWSUtils.UploadImage(data.ImageBytes, data.SafeName, data.Prompt) ?? "Error";
         }
 
         public static async Task<string?> UploadImage(byte[] data, string name, string fullPrompt)

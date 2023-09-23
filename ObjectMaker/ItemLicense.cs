@@ -1,4 +1,4 @@
-﻿namespace SignMaker
+﻿namespace ObjectMaker
 {
     public class ItemLicense
     {
@@ -17,15 +17,15 @@
             {
                 __Version = 13;
                 licensePoints = new List<object>();
-                this.resourceTypeName = resourceType;
+                resourceTypeName = resourceType;
                 this.resourceId = resourceId;
-                this.lockData = new List<object>();
-                this.missingPoints = new List<object>();
-                this.provenanceTree = new List<Provenancetree>()
+                lockData = new List<object>();
+                missingPoints = new List<object>();
+                provenanceTree = new List<Provenancetree>()
                     {
                         new Provenancetree(creatorId),
                     };
-                this.subLicenses = new List<subLicense>()
+                subLicenses = new List<subLicense>()
                     {
                         new subLicense(creatorId, newLicenseId, itemName, itemPrice),
                     };

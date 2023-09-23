@@ -1,66 +1,31 @@
-﻿using SanWebApi.Json;
-using SanProtocol.ClientKafka;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Text;
-using System.Text.RegularExpressions;
-using System.Threading;
-using System.Threading.Tasks;
-using SanProtocol;
-using SanBot.Core;
-using System.Web;
-using SanProtocol.ClientVoice;
-using SanBot.Core.MessageHandlers;
+﻿using System.Collections.Concurrent;
 using System.Diagnostics;
-using Concentus.Structs;
 using NAudio.Wave;
-using System.Net;
-using System.Collections.Concurrent;
-using Microsoft.CognitiveServices.Speech;
-using Microsoft.CognitiveServices.Speech.Audio;
-using Renci.SshNet;
-using System.Net.Http.Json;
-using System.Text.Json;
-using Amazon.S3;
-using Amazon.Runtime.CredentialManagement;
-using Amazon.Runtime;
-using Amazon.S3.Transfer;
+using ObjectMaker;
+using SanBot.BaseBot;
+using SanBot.Core;
+using SanProtocol;
+using SanProtocol.ClientKafka;
+using SanProtocol.ClientVoice;
 using SweaterMaker;
-using SignMaker;
-using static SanBot.Core.Driver;
-using Microsoft.CognitiveServices.Speech.Translation;
-using NAudio.Utils;
-using SanBot.Database.Models;
-using static EchoBot.VoiceConversation;
-using NAudio;
-using ConversationBot;
 using static ConversationBot.ImageGenerator;
 using static ConversationBot.OpenAiChat;
-using static SanWebApi.Json.ExtractionResponse;
-using NAudio.Codecs;
-using Renci.SshNet.Messages;
-using SanBot.BaseBot;
+using static ConversationBot.VoiceConversation;
+using static SanBot.Core.Driver;
 using static SanProtocol.Messages;
 
-namespace EchoBot
+namespace ConversationBot
 {
     public class ConversationBot : SimpleBot
     {
-        public Driver Driver { get; set; }
-
         public DateTime? LastTimeWeListenedToOurTarget { get; set; } = null;
         public uint? agentControllerIdImListeningTo { get; set; } = null;
         public List<PersonaData> TargetPersonas { get; set; } = new List<PersonaData>();
 
 
-        //public SanUUID ItemClousterResourceId { get; set; } = new SanUUID("62f7bca2e04c60bc77ef3bbccbcfb61e"); // panda reaction thing
-        //public SanUUID ItemClousterResourceId { get; set; } = new SanUUID("a08aa34cad4dbaea7c1e18a44e4f973c"); // toast reaction thing
-        //public SanUUID ItemClousterResourceId { get; set; } = new SanUUID("df2cdee01bb4024640fb93d1c6c1bf29"); // wtf reaction thing
         public SanUUID ItemClousterResourceId_Exclamation { get; set; } = new SanUUID("beb1c1d298aa865fc5d5326dada8d2a7"); // ! reaction thing
-        //public SanUUID ItemClousterResourceId { get; set; } = new SanUUID("97477c6e978aa38d20e0bb8a60e85830"); // lightning reaction thing
-        public SanUUID ItemClousterResourceId { get; set; } = new SanUUID("04c2d5a7ea3d6fb47af66669cfdc9f9a"); // heart reaction thing
-                                                                                                               // public SanUUID ItemClousterResourceId { get; set; } = new SanUUID("04c2d5a7ea3d6fb47af66669cfdc9f9a"); // heart reaction thing
+        public SanUUID ItemClousterResourceId { get; set; } = new SanUUID("8d9484518db405d954204f2bfa900d0c"); // heart reaction thing
+                                                                                                               // public SanUUID ItemClousterResourceId { get; set; } = new SanUUID("8d9484518db405d954204f2bfa900d0c"); // heart reaction thing
                                                                                                                //public SanUUID ItemClousterResourceId { get; set; } = new SanUUID("b8534d067b0613a509b0155e0dacb0b2"); // fox doll
         public List<float> MarkedPosition { get; set; } = new List<float>() { 0, 0, 0 };
 
@@ -77,14 +42,14 @@ namespace EchoBot
         public bool ChatbotEnabled { get; set; } = false;
         public bool ChatbotSayResult { get; set; } = false;
         public bool ChatbotSpeakResult { get; set; } = true;
-      //  public string ChatbotPrompt { get; set; } = "You are a bot that is playing sansar and talking in the social hub. Your name is bot. There aren't many people around and you're bored. Do not respond in long sentences";
-   //     public string ChatbotPrompt { get; set; } = "You are a gamer. You only talk in gamer and twitch memes.";
-     
-        
+        //  public string ChatbotPrompt { get; set; } = "You are a bot that is playing sansar and talking in the social hub. Your name is bot. There aren't many people around and you're bored. Do not respond in long sentences";
+        //     public string ChatbotPrompt { get; set; } = "You are a gamer. You only talk in gamer and twitch memes.";
+
+
         public string ChatbotPrompt { get; set; } = "prompt You are playing sansar. You are open to talk about anything. You must only respond with personal attacks";
-      //  public string ChatbotPrompt { get; set; } = "I want you to act as a bored player that is playing sansar and talking in the social hub. You will only speak in short responses. You do not respond in multiple sentences";
-       //ds public string ChatbotPrompt { get; set; } = "I want you to act as a normal player that is playing sansar and talking in the social hub. Your name is bot. There aren't many people around and you're bored. Do not respond in long sentences";
-      //  public string ChatbotPrompt { get; set; } = "prompt I want you to be a cringy furry squirrel who dances with pompoms. You say things like \"1 2 3 power pompom\". you always make fun of people's name. You talk in very short sentences. You do not greet people.";
+        //  public string ChatbotPrompt { get; set; } = "I want you to act as a bored player that is playing sansar and talking in the social hub. You will only speak in short responses. You do not respond in multiple sentences";
+        //ds public string ChatbotPrompt { get; set; } = "I want you to act as a normal player that is playing sansar and talking in the social hub. Your name is bot. There aren't many people around and you're bored. Do not respond in long sentences";
+        //  public string ChatbotPrompt { get; set; } = "prompt I want you to be a cringy furry squirrel who dances with pompoms. You say things like \"1 2 3 power pompom\". you always make fun of people's name. You talk in very short sentences. You do not greet people.";
         public int NumHistoriesToKeep { get; set; } = 4;
         public double ChatbotActiveConversationDurationSeconds { get; set; } = 0;
         public Dictionary<string, List<ConversationData>> ConversationHistoriesByPersonaHandle { get; set; } = new Dictionary<string, List<ConversationData>>();
@@ -102,13 +67,12 @@ namespace EchoBot
             "bot",
         };
 
-        public ConversationBot()
+        private AzureApi? _azureApi = null;
+
+        public override Task Start()
         {
             ConfigFile config;
-            var sanbotPath = Path.Join(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "SanBot"
-            );
+            var sanbotPath = GetSanbotConfigPath();
             var configPath = Path.Join(sanbotPath, "EchoBot.config.json");
 
             try
@@ -120,30 +84,19 @@ namespace EchoBot
                 throw new Exception("Missing or invalid config.json", ex);
             }
 
-            Driver = new Driver();
-            Driver.OnOutput += Driver_OnOutput;
+            var azureConfigPath = Path.Join(sanbotPath, "azure.json");
+            if (File.Exists(azureConfigPath))
+            {
+                _azureApi = new AzureApi(azureConfigPath, Driver.Speak);
+            }
 
             Driver.RegionToJoin = new RegionDetails("nop", "flat");
-        //  Driver.RegionToJoin = new RegionDetails("anuamun", "bamboo-central");
-        //   Driver.RegionToJoin = new RegionDetails("djm3n4c3-9174", "reactive-dance-demo");
-
-            //   Driver.RegionToJoin = new RegionDetails("fayd", "android-s-dream");
-            //   //  Driver.RegionToJoin = new RegionDetails("test", "base2");
-            // Driver.RegionToJoin = new RegionDetails("sansar-studios", "r-d-starter-inventory-collection");
-            // Driver.RegionToJoin = new RegionDetails("sansar-studios", "r-d-starter-inventory-collection");
-            //  Driver.RegionToJoin = new RegionDetails("solasnagealai", "once-upon-a-midnight-dream");
-       //        Driver.RegionToJoin = new RegionDetails("sansar-studios", "social-hub");
-            //    Driver.RegionToJoin = new RegionDetails("turtle-4332", "turtles-campfire");
-         //  Driver.RegionToJoin = new RegionDetails("wally-sansar", "eapycadvo");
-      //  sansar://sansar.com/experience/wally-sansar/eapycadvo?instance=88faa5bd-0b86-47bb-836b-eec3eaa7989a&event=e8c62e02&target_transform=%280.0%2c%200.0%2c%200.89884615%2c%20-0.4382642%29%2c%20%28-1.9210045%2c%20-4.4623494%2c%201.2324542%2c%200.0%29
-
             Driver.AutomaticallySendClientReady = true;
             Driver.UseVoice = true;
             Driver.StartAsync(config.Username, config.Password).Wait();
 
-            Stopwatch watch = new Stopwatch();
+            var watch = new Stopwatch();
 
-            
             _IsConversationThreadRunning = true;
             ConversationThread = new Thread(new ThreadStart(ConversationThreadEntrypoint));
             ConversationThread.Start();
@@ -160,10 +113,12 @@ namespace EchoBot
                 }
             }
 
-            _IsConversationThreadRunning = false;
-            ConversationThread.Join();
+            //_IsConversationThreadRunning = false;
+            //ConversationThread.Join();
+
+            //return Task.CompletedTask;
         }
-        
+
         public override void OnPacket(IPacket packet)
         {
             base.OnPacket(packet);
@@ -186,10 +141,10 @@ namespace EchoBot
                     WorldStateMessages_OnDestroyCluster((SanProtocol.WorldState.DestroyCluster)packet);
                     break;
                 case ClientVoiceMessages.LocalAudioData:
-                    ClientVoiceMessages_OnLocalAudioData((SanProtocol.ClientVoice.LocalAudioData)packet);
+                    ClientVoiceMessages_OnLocalAudioData((LocalAudioData)packet);
                     break;
                 case ClientKafkaMessages.RegionChat:
-                    ClientKafkaMessages_OnRegionChat((SanProtocol.ClientKafka.RegionChat)packet);
+                    ClientKafkaMessages_OnRegionChat((RegionChat)packet);
                     break;
                 case ClientRegionMessages.ClientRuntimeInventoryUpdatedNotification:
                     ClientRegionMessages_OnClientRuntimeInventoryUpdatedNotification((SanProtocol.ClientRegion.ClientRuntimeInventoryUpdatedNotification)packet);
@@ -244,7 +199,7 @@ namespace EchoBot
 
         public static float Distance(float x1, float x2, float y1, float y2, float z1, float z2)
         {
-            return (float)Math.Sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2) + (z1 - z2) * (z1 - z2));
+            return (float)Math.Sqrt(((x1 - x2) * (x1 - x2)) + ((y1 - y2) * (y1 - y2)) + ((z1 - z2) * (z1 - z2)));
         }
 
         private void ClientRegionMessages_OnClientRuntimeInventoryUpdatedNotification(SanProtocol.ClientRegion.ClientRuntimeInventoryUpdatedNotification e)
@@ -255,8 +210,8 @@ namespace EchoBot
         #region Sweater_Maker_9000
         public string GenerateSweaterPrompt(string prompt, string creatorName)
         {
-            bool isTiled = false;
-            int size = 512;
+            var isTiled = false;
+            var size = 512;
 
             prompt = prompt.Trim();
             if (prompt.ToLower().StartsWith("tiled "))
@@ -273,9 +228,9 @@ namespace EchoBot
             var truncatedPrompt = prompt.Substring(0, Math.Min(128, prompt.Length));
 
             Driver.SendChatMessage("Generating image...");
-            var promptResult = ImageGenerator.GetImage(truncatedPrompt, isTiled, size).Result;
+            var promptResult = GetImage(truncatedPrompt, isTiled, size).Result;
 
-            if(promptResult.ImagePathOnDisk == null)
+            if (promptResult.ImagePathOnDisk == null)
             {
                 Output("Oops, image path on disk is null?");
                 return "";
@@ -284,7 +239,7 @@ namespace EchoBot
             var description = $@"
 {prompt}
 
-Created by {creatorName} on {DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss")}
+Created by {creatorName} on {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}
 -----
 Sampler: {promptResult.ResultInfo.sampler}
 Steps: {promptResult.ResultInfo.steps}
@@ -304,8 +259,8 @@ Height: {promptResult.ResultInfo.height}
         #region SignMaker_9000
         public string GenerateSignPrompt(string prompt, string creatorName)
         {
-            bool isTiled = false;
-            int size = 512;
+            var isTiled = false;
+            var size = 512;
 
             prompt = prompt.Trim();
             if (prompt.ToLower().StartsWith("tiled "))
@@ -322,7 +277,7 @@ Height: {promptResult.ResultInfo.height}
             var truncatedPrompt = prompt.Substring(0, Math.Min(128, prompt.Length));
 
             Driver.SendChatMessage("Generating image...");
-            var promptResult = ImageGenerator.GetImage(truncatedPrompt, isTiled, size).Result;
+            var promptResult = GetImage(truncatedPrompt, isTiled, size).Result;
 
             if (promptResult.ImagePathOnDisk == null)
             {
@@ -333,7 +288,7 @@ Height: {promptResult.ResultInfo.height}
             var description = $@"
 {prompt}
 
-Created by {creatorName} on {DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss")}
+Created by {creatorName} on {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}
 -----
 Sampler: {promptResult.ResultInfo.sampler}
 Steps: {promptResult.ResultInfo.steps}
@@ -352,28 +307,34 @@ Height: {promptResult.ResultInfo.height}
 
         public string GeneratePrompt(string prompt)
         {
-            bool isTiled = false;
+            var isTiled = false;
 
             prompt = prompt.Trim();
-            if(prompt.ToLower().StartsWith("tiled "))
+            if (prompt.ToLower().StartsWith("tiled "))
             {
                 isTiled = true;
                 prompt = prompt.Substring("tiled ".Length).Trim();
             }
 
             var truncatedPrompt = prompt.Substring(0, Math.Min(128, prompt.Length));
-            var promptResult = ImageGenerator.GetImage(truncatedPrompt, isTiled).Result;
+            var promptResult = GetImage(truncatedPrompt, isTiled).Result;
 
             var url = AWSUtils.UploadBytes(promptResult).Result;
 
             return url;
         }
 
-        private List<string> LastMessages = new List<string>();
+        private readonly List<string> LastMessages = new();
 
         private void ClientKafkaMessages_OnRegionChat(RegionChat e)
         {
             var persona = Driver.ResolvePersonaId(e.FromPersonaId).Result;
+            persona ??= new SanBot.Database.Services.PersonaService.PersonaDto()
+            {
+                Handle = ".UNKNOWN",
+                Id = new Guid(),
+                Name = ".UNKNOWN"
+            };
             if (e.Message == "")
             {
                 return;
@@ -403,7 +364,7 @@ Height: {promptResult.ResultInfo.height}
                 var animationId = new SanUUID();
                 byte playbackMode = 0;
                 byte animationType = 1;
-                float playbackSpeed = 1.0f;
+                var playbackSpeed = 1.0f;
                 byte skeletonType = 0;
 
                 var animationParams = e.Message.Split(" ");
@@ -482,7 +443,7 @@ Height: {promptResult.ResultInfo.height}
             }
             if (e.Message == "/warpall")
             {
-                Random rand = new Random();
+                var rand = new Random();
                 foreach (var item in Driver.PersonasBySessionId)
                 {
                     if (item.Value.AgentControllerId == null)
@@ -493,9 +454,9 @@ Height: {promptResult.ResultInfo.height}
                     Driver.RegionClient.SendPacket(new SanProtocol.AgentController.WarpCharacter(
                         Driver.GetCurrentFrame(),
                         item.Value.AgentControllerId.Value,
-                        MarkedPosition[0] + (1.5f - rand.NextSingle() * 3),
-                        MarkedPosition[1] + (1.5f - rand.NextSingle() * 3),
-                        MarkedPosition[2] + (1.5f - rand.NextSingle() * 3),
+                        MarkedPosition[0] + (1.5f - (rand.NextSingle() * 3)),
+                        MarkedPosition[1] + (1.5f - (rand.NextSingle() * 3)),
+                        MarkedPosition[2] + (1.5f - (rand.NextSingle() * 3)),
                         0,
                         0,
                         0,
@@ -506,10 +467,10 @@ Height: {promptResult.ResultInfo.height}
 
                 return;
             }
-            if(e.Message.ToLower().StartsWith("/speak "))
+            if (e.Message.ToLower().StartsWith("/speak "))
             {
                 ChatbotPrompt = e.Message.Substring("/speak ".Length).Trim();
-                Driver.SpeakAzure(ChatbotPrompt, true);
+                _azureApi?.SpeakAzure(ChatbotPrompt, true);
             }
             if (e.Message.ToLower().StartsWith("prompt "))
             {
@@ -534,7 +495,7 @@ Height: {promptResult.ResultInfo.height}
                 {
                     Driver.SendChatMessage(result);
                 }
-            }   
+            }
             if (SignMakerEnabled && e.Message.StartsWith("sign "))
             {
                 var prompt = e.Message.Substring("sign ".Length).Trim();
@@ -548,12 +509,12 @@ Height: {promptResult.ResultInfo.height}
             {
                 var testMessage = new SanProtocol.ClientRegion.ClientRuntimeInventoryUpdatedNotification("Butts");
                 Driver.RegionClient.SendPacket(testMessage);
-            
+
                 //Server crash (from spam?)
-                 for (int i = 0; i < 255; i++)
-                 {
-                     Driver.RegionClient.SendPacket(new SanProtocol.AgentController.SetCharacterNodePhysics(Driver.GetCurrentFrame(), (uint)i, (byte)i, 1, 1));
-                 }
+                for (var i = 0; i < 255; i++)
+                {
+                    Driver.RegionClient.SendPacket(new SanProtocol.AgentController.SetCharacterNodePhysics(Driver.GetCurrentFrame(), (uint)i, (byte)i, 1, 1));
+                }
             }
             if (e.Message == "/jump")
             {
@@ -617,7 +578,7 @@ Height: {promptResult.ResultInfo.height}
 
                 Thread.Sleep(1000);
 
-                foreach (var item in this.Driver.PersonasBySessionId)
+                foreach (var item in Driver.PersonasBySessionId)
                 {
                     if (item.Value.AgentControllerId == null)
                     {
@@ -704,14 +665,14 @@ Height: {promptResult.ResultInfo.height}
                 {
                     if (TextToSpeechEnabled)
                     {
-                        Driver.SpeakAzure($"{e.Message}");
+                        _azureApi?.SpeakAzure($"{e.Message}");
                     }
                 }
             }
 
-            if(ChatbotEnabled)
+            if (ChatbotEnabled)
             {
-                 //RunChatQuery(persona.Name, persona.Handle, e.Message);
+                //RunChatQuery(persona.Name, persona.Handle, e.Message);
             }
 
             Output($"{persona.Name} [{persona.Handle}]: {e.Message}");
@@ -719,7 +680,7 @@ Height: {promptResult.ResultInfo.height}
 
         public void SetTypingIndicator(bool showIndicator)
         {
-            Driver.KafkaClient.SendPacket(new SanProtocol.ClientKafka.RegionChat(
+            Driver.KafkaClient.SendPacket(new RegionChat(
                 new SanUUID(),
                 new SanUUID(),
                 "",
@@ -740,13 +701,13 @@ Height: {promptResult.ResultInfo.height}
 
         public void RunChatQuery(string personaName, string personaHandle, string query)
         {
-            if(Driver.IsSpeaking)
+            if (Driver.IsSpeaking)
             {
                 Console.WriteLine($"Ignored request because we are currently speaking: " + query);
                 return;
             }
 
-            if(PlayTypingIndicator)
+            if (PlayTypingIndicator)
             {
                 SetTypingIndicator(true);
             }
@@ -771,7 +732,7 @@ Height: {promptResult.ResultInfo.height}
             ChatbotLastConversationTimeByPersonaHandle[personaHandle] = DateTime.Now;
             var previousHistory = ConversationHistoriesByPersonaHandle[personaHandle].Take(NumHistoriesToKeep).ToList();
 
-            var result = OpenAiChat.RunPrompt(ChatbotPrompt, query, personaName, previousHistory).Result;
+            var result = RunPrompt(ChatbotPrompt, query, personaName, previousHistory).Result;
             Output("AI RESULT: " + result);
 
             ConversationHistoriesByPersonaHandle[personaHandle].Add(new ConversationData()
@@ -781,27 +742,28 @@ Height: {promptResult.ResultInfo.height}
             });
 
             var historyCount = ConversationHistoriesByPersonaHandle[personaHandle].Count;
-            if(historyCount > NumHistoriesToKeep)
+            if (historyCount > NumHistoriesToKeep)
             {
                 ConversationHistoriesByPersonaHandle[personaHandle].RemoveRange(0, historyCount - NumHistoriesToKeep);
             }
 
-            if(ChatbotSayResult)
+            if (ChatbotSayResult)
             {
                 Driver.SendChatMessage(result);
             }
-            if(ChatbotSpeakResult)
+            if (ChatbotSpeakResult)
             {
-                Driver.SpeakAzure(result, true);
+                _azureApi?.SpeakAzure(result, true);
             }
 
-            if(PlayTypingIndicator)
+            if (PlayTypingIndicator)
             {
                 SetTypingIndicator(false);
             }
         }
-        public Thread ConversationThread { get; set; }
-        volatile bool _IsConversationThreadRunning = false;
+        public Thread? ConversationThread { get; set; }
+
+        private volatile bool _IsConversationThreadRunning = false;
         public void ConversationThreadEntrypoint()
         {
             while (_IsConversationThreadRunning)
@@ -821,27 +783,9 @@ Height: {promptResult.ResultInfo.height}
             TargetPersonas.RemoveAll(n => n.ClusterId == e.ClusterId);
         }
 
-        public class VoiceAudioStream : PullAudioInputStreamCallback
-        {
-            private MemoryStream ms;
 
-            public VoiceAudioStream(byte[] data)
-            {
-                ms = new MemoryStream(data);
-            }
 
-            public override void Close()
-            {
-                ms.Close();
-            }
-
-            public override int Read(byte[] dataBuffer, uint size)
-            {
-                return ms.Read(dataBuffer, 0, (int)size);
-            }
-        }
-
-        private void ClientVoiceMessages_OnLocalAudioData(SanProtocol.ClientVoice.LocalAudioData e)
+        private void ClientVoiceMessages_OnLocalAudioData(LocalAudioData e)
         {
             // MAIN THREAD
 
@@ -879,7 +823,7 @@ Height: {promptResult.ResultInfo.height}
 
             if (!ConversationsByAgentControllerId.ContainsKey(e.AgentControllerId))
             {
-                ConversationsByAgentControllerId[e.AgentControllerId] = new VoiceConversation(persona, this);
+                ConversationsByAgentControllerId[e.AgentControllerId] = new VoiceConversation(persona, this, _azureApi);
                 ConversationsByAgentControllerId[e.AgentControllerId].OnSpeechToText += ConversationBot_OnSpeechToText;
             }
             var conversation = ConversationsByAgentControllerId[e.AgentControllerId];
@@ -889,7 +833,7 @@ Height: {promptResult.ResultInfo.height}
                 return;
             }
 
-          //  Console.WriteLine($"Distance to {persona.UserName} = {distance}");
+            //  Console.WriteLine($"Distance to {persona.UserName} = {distance}");
             conversation.AddVoiceData(e.Data);
         }
 
@@ -949,7 +893,7 @@ Height: {promptResult.ResultInfo.height}
                 }
 
                 var distanceToPlayer = AutoConversationDistance + 1000.0f;
-                if(Driver.MyPersonaData != null)
+                if (Driver.MyPersonaData != null)
                 {
                     var myPos = Driver.MyPersonaData.Position;
                     distanceToPlayer = Distance(myPos[0], result.Persona.Position[0], myPos[1], result.Persona.Position[1], myPos[2], result.Persona.Position[2]);
@@ -975,8 +919,9 @@ Height: {promptResult.ResultInfo.height}
             {
                 return;
             }
-            var translated = ToEnglishAzure(result.Text);
-            if(translated == null)
+
+            var translated = _azureApi?.ToEnglishAzure(result.Text);
+            if (translated == null)
             {
                 return;
             }
@@ -1006,7 +951,7 @@ Height: {promptResult.ResultInfo.height}
         private void ClientRegionMessages_OnSetAgentController(SanProtocol.ClientRegion.SetAgentController e)
         {
             Output("Sending to voice server: LocalAudioStreamState(1)...");
-            Driver.VoiceClient.SendPacket(new SanProtocol.ClientVoice.LocalAudioStreamState(Driver.VoiceClient.InstanceId, 0, 1, 1));
+            Driver.VoiceClient.SendPacket(new LocalAudioStreamState(Driver.VoiceClient.InstanceId, 0, 1, 1));
 
             HaveIBeenCreatedYet = true;
             if (Driver.MyPersonaData != null && Driver.MyPersonaData.ClusterId != null)
@@ -1033,7 +978,7 @@ Height: {promptResult.ResultInfo.height}
 
         private void WorldStateMessages_OnCreateClusterViaDefinition(SanProtocol.WorldState.CreateClusterViaDefinition e)
         {
-            if (e.ResourceId == this.ItemClousterResourceId)
+            if (e.ResourceId == ItemClousterResourceId)
             {
                 MarkedPosition = e.SpawnPosition;
                 Driver.SetPosition(
@@ -1050,7 +995,7 @@ Height: {promptResult.ResultInfo.height}
                             0,
                         }
                     },
-                    0xFFFFFFFFFFFFFFFF, 
+                    0xFFFFFFFFFFFFFFFF,
                     true
                 );
                 Driver.SetVoicePosition(e.SpawnPosition, true);

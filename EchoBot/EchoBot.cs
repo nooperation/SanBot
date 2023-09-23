@@ -1,6 +1,4 @@
-﻿using Concentus.Structs;
-using NAudio.Wave;
-using SanBot.BaseBot;
+﻿using SanBot.BaseBot;
 using SanBot.Core;
 using SanProtocol;
 using SanProtocol.ClientKafka;
@@ -161,34 +159,8 @@ namespace EchoBot
             // This is just kept to demonstrate a way of converting the audio to a usable format. Something that can be sent to Whisper or some other api
             Directory.CreateDirectory("out_voice");
 
-            byte[] wavBytes;
-            using (MemoryStream ms = new())
-            {
-                const int kFrameSize = 960;
-                const int kFrequency = 48000;
-
-                var decoder = OpusDecoder.Create(kFrequency, 1);
-                var decompressedBuffer = new short[kFrameSize * 2];
-
-                foreach (var item in VoiceBuffer)
-                {
-                    var numSamples = OpusPacketInfo.GetNumSamples(decoder, item, 0, item.Length);
-                    var result = decoder.Decode(item, 0, item.Length, decompressedBuffer, 0, numSamples);
-
-                    var decompressedBufferBytes = new byte[result * 2];
-                    Buffer.BlockCopy(decompressedBuffer, 0, decompressedBufferBytes, 0, result * 2);
-
-                    ms.Write(decompressedBufferBytes);
-                }
-
-                var unused = ms.Seek(0, SeekOrigin.Begin);
-                using RawSourceWaveStream rs = new(ms, new WaveFormat(kFrequency, 16, 1));
-                using MemoryStream wavStream = new();
-                WaveFileWriter.WriteWavFileToStream(wavStream, rs);
-                wavBytes = wavStream.ToArray();
-
-                File.WriteAllBytes($"./out_voice/{DateTimeOffset.Now.ToUnixTimeMilliseconds()}.wav", wavBytes);
-            }
+            var wavBytes = Driver.OpusToRaw(VoiceBuffer);
+            File.WriteAllBytes($"./out_voice/{DateTimeOffset.Now.ToUnixTimeMilliseconds()}.wav", wavBytes);
 
             VoiceBuffer.Clear();
         }

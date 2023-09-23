@@ -596,7 +596,7 @@ namespace CrowdBot
                 Output($"Start following {persona.UserName} ({persona.Handle})...");
                 StartFollowing(persona);
             }
-            else if (command.StartsWith("clone "))
+            else if (command.StartsWith("clone ") && Driver.MyPersonaDetails != null)
             {
                 var cloneTargetHandle = command[6..].ToLower().Trim();
 
