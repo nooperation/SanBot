@@ -1,32 +1,25 @@
-﻿using ObjectMaker;
-using SanBot.Core;
-using SanWebApi;
-using SanWebApi.Json;
-using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Diagnostics.Metrics;
-using System.Linq;
+﻿using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Xml;
+using SanBot.Core;
+using SanWebApi.Json;
 using static SanWebApi.WebApiClient;
 
-namespace SignMaker
+namespace ObjectMaker
 {
     public partial class SignMaker9000
     {
         public static readonly string kTempDirectory = "./SignMaker-Temp";
         public static readonly string kOutputDirectory = Path.GetFullPath(Path.Join(kTempDirectory, "Import", "BF", "RF"));
-        public static readonly Regex SafeFilenamePattern = new Regex("^[a-zA-Z0-9-_\\.]+$");
+        public static readonly Regex SafeFilenamePattern = new("^[a-zA-Z0-9-_\\.]+$");
 
         public int SessionId { get; set; } = 12345;
 
 
         public Driver Driver { get; set; } = default!;
 
-        struct PromptData
+        private struct PromptData
         {
 
         }
@@ -35,9 +28,9 @@ namespace SignMaker
         {
             shortName = shortName.Substring(0, Math.Min(64, shortName.Length));
 
-            this.Driver = driver;
+            Driver = driver;
             var myPersona = driver.MyPersonaDetails;
-            if(myPersona == null)
+            if (myPersona == null)
             {
                 throw new Exception("myPersona is null :(");
             }
@@ -64,7 +57,7 @@ namespace SignMaker
                 n.Contains("Material-Resource.v1.payload.v0.noVariants") &&
                 !n.EndsWith("cac0284aee0cf961bda4d59ef22130f2.Material-Resource.v1.payload.v0.noVariants") &&
                 !n.EndsWith("dcb7ae1b8de01fd8b38ad4dad5e109c2.Material-Resource.v1.payload.v0.noVariants")).FirstOrDefault();
-            var newMaterialId = Path.GetFileName(newMaterialPath);
+            var newMaterialId = Path.GetFileName(newMaterialPath) ?? throw new Exception("Failed to newMaterialPath path");
             newMaterialId = newMaterialId.Substring(0, newMaterialId.IndexOf('.'));
 
             var newTextureResourcePath = filesToUpload.Where(n =>
@@ -73,7 +66,7 @@ namespace SignMaker
                 !n.EndsWith("7b066564ef954b9219b1f43dabfb38d9.Texture-Resource.v3.payload.v0.noVariants") &&
                 !n.EndsWith("01a49a3efaf5f605039b73b7439428cf.Texture-Resource.v3.payload.v0.noVariants") &&
                 !n.EndsWith("4a19a59f97b345345744b8e7368c6666.Texture-Resource.v3.payload.v0.noVariants")).FirstOrDefault();
-            var newTextureResourceId = Path.GetFileName(newTextureResourcePath);
+            var newTextureResourceId = Path.GetFileName(newTextureResourcePath) ?? throw new Exception("Failed to newTextureResourcePath path");
             newTextureResourceId = newTextureResourceId.Substring(0, newTextureResourceId.IndexOf('.'));
 
             var newClusterDef = ClusterMaker.GenerateNewCluster(
@@ -123,7 +116,7 @@ namespace SignMaker
             driver.SendChatMessage("Creating listing...");
             Console.WriteLine("CreateListing...");
             var listingResponse = await Driver.WebApi.CreateListing(
-                new SanWebApi.Json.CreateListingRequest(
+                new CreateListingRequest(
                     itemResponse.id,
                     shortName,
                     description,
@@ -138,10 +131,10 @@ namespace SignMaker
             var newImageId = await CreateProductImageUrl(productImageBytes);
 
             Console.WriteLine("AddProductImage...");
-            var setProductImageResponse = await Driver.WebApi.AddProductImage(new SanWebApi.Json.AddProductImageRequest(newImageId, listingResponse.data.id));
+            var setProductImageResponse = await Driver.WebApi.AddProductImage(new AddProductImageRequest(newImageId, listingResponse.data.id));
 
             Console.WriteLine("SetListingImage...");
-            var setImageResponse = await Driver.WebApi.SetListingImage(listingResponse.data.id, new SanWebApi.Json.SetListingImageRequest(setProductImageResponse.data.id));
+            var setImageResponse = await Driver.WebApi.SetListingImage(listingResponse.data.id, new SetListingImageRequest(setProductImageResponse.data.id));
 
             return listingResponse.data.id;
         }
@@ -252,7 +245,7 @@ value = ""1.0""
 
             File.WriteAllText($"{kTempDirectory}/Import/BF/material-editor-save/{SessionId}/3c31b51a5fb62eb8a232fc1053a75bbe", fileContents);
             File.WriteAllText($"{kTempDirectory}/Import/BF/material-override/3c31b51a5fb62eb8a232fc1053a75bbe", fileContents);
-            
+
             fileContents = $@"
 name = ""Material.001""
 shader = ""OpaqueSingleLayer""
@@ -333,7 +326,7 @@ value = ""1.0""
                               @$"-application.logging.logAllTagged true " +
                               @$"-application.logging.disableTags ComponentManager MeshDuplicateCheck AssetSystem EventQueue ResourceLoader TextureStreamingManager " +
                               @$"-application.logging.logFilePath C:\Users\Nop\AppData\Local\LindenLab\SansarClient\Log\2022_12_15-06_13_15_SansarClient.log ";
-            
+
             var process = Process.Start(@"C:\Program Files\Sansar\Client\ImportContent.exe", commandLine);
             await process.WaitForExitAsync();
         }
@@ -341,7 +334,7 @@ value = ""1.0""
         private List<string> GetFilesToUpload()
         {
             // Get files to upload
-            List<string> filesToUpload = new List<string>();
+            var filesToUpload = new List<string>();
             var buildFiles = Directory.GetFiles(kOutputDirectory);
             foreach (var file in buildFiles)
             {
@@ -369,8 +362,10 @@ value = ""1.0""
 
         private static void DumpJson(object obj)
         {
-            var options = new System.Text.Json.JsonSerializerOptions(new System.Text.Json.JsonSerializerDefaults());
-            options.WriteIndented = true;
+            var options = new System.Text.Json.JsonSerializerOptions(new System.Text.Json.JsonSerializerDefaults())
+            {
+                WriteIndented = true
+            };
 
             Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(obj, options));
         }
@@ -385,7 +380,7 @@ value = ""1.0""
             getUploadUrlsPayload.AddRaw($"{licenseAssetId}.License-Resource.v1.payload.v0.noVariants");
 
             var uploadUrls = await Driver.WebApi.GetUploadUrls(getUploadUrlsPayload);
-            if(uploadUrls.assets.Length == 0)
+            if (uploadUrls.assets.Length == 0)
             {
                 throw new Exception("We didn't get any urls back from the signing endpoint");
             }
@@ -473,7 +468,7 @@ value = ""1.0""
         {
             using (var md5 = MD5.Create())
             {
-                byte[] hashValue = md5.ComputeHash(data);
+                var hashValue = md5.ComputeHash(data);
 
                 return BitConverter.ToString(hashValue).Replace("-", "").ToLower();
             }

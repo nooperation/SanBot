@@ -1,12 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using SanBot.Database.Data;
 using SanBot.Database.Models;
-using SanBot.Database;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace SanBot.Database.Services
 {
@@ -16,7 +10,7 @@ namespace SanBot.Database.Services
 
         public PersonaService(ApplicationDbContext context)
         {
-            this._context = context;
+            _context = context;
         }
 
         public class PersonaDto
@@ -28,9 +22,9 @@ namespace SanBot.Database.Services
             }
             public PersonaDto(Persona persona)
             {
-                this.Id = persona.Id;
-                this.Handle = persona.Handle;
-                this.Name = persona.Name;
+                Id = persona.Id;
+                Handle = persona.Handle;
+                Name = persona.Name;
             }
 
             public Guid Id { get; set; }

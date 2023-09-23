@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
+    <OutputType>Library</OutputType>
     <TargetFramework>net6.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
@@ -10,8 +10,6 @@
   <ItemGroup>
     <ProjectReference Include="..\SanBot.Core\SanBot.Core\SanBot.Core.csproj" />
     <ProjectReference Include="..\Sanbot.Database\SanBot.Database.csproj" />
-    <ProjectReference Include="..\SanProtocol\SanProtocol\SanProtocol.csproj" />
-    <ProjectReference Include="..\SanWebApi\SanWebApi\SanWebApi.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\SanBot.BaseBot\SanBot.BaseBot.csproj" />
     <ProjectReference Include="..\SanBot.Core\SanBot.Core\SanBot.Core.csproj" />
     <ProjectReference Include="..\Sanbot.Database\SanBot.Database.csproj" />
     <ProjectReference Include="..\SanProtocol\SanProtocol\SanProtocol.csproj" />

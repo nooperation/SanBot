@@ -1,5 +1,4 @@
-﻿using Microsoft.Data.Sqlite;
-using Microsoft.EntityFrameworkCore;
+﻿using SanBot.Database.Data;
 using SanBot.Database.Services;
 
 namespace SanBot.Database

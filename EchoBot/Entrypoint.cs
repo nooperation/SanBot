@@ -1,16 +1,11 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace EchoBot
+﻿namespace EchoBot
 {
     public class Entrypoint
     {
-        static void Main(string[] args)
+        private static async Task Main(string[] args)
         {
             var bot = new EchoBot();
+            await bot.Start();
         }
     }
 }

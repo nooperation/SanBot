@@ -1,12 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net.Http.Json;
-using System.Text;
+﻿using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
-using static EchoBot.ConversationBot;
 
 namespace ConversationBot
 {
@@ -112,7 +106,7 @@ namespace ConversationBot
                     "None",
                     false,
                     false,
-                    null,
+                    null!,
                     "",
                     "Seed",
                     "",
@@ -121,7 +115,7 @@ namespace ConversationBot
                     true,
                     false,
                     false,
-                    null,
+                    null!,
                     "",
                     "",
                 }
@@ -132,20 +126,21 @@ namespace ConversationBot
                 var result = await client.PostAsJsonAsync("http://127.0.0.1:7860/api/predict", requestData);
                 var resultString = await result.Content.ReadAsStringAsync();
 
-                var jsonResult = System.Text.Json.JsonSerializer.Deserialize<PredictionResult>(resultString);
+                var jsonResult = System.Text.Json.JsonSerializer.Deserialize<PredictionResult>(resultString) ?? throw new Exception("Failed to deserialize result string");
                 var data = (System.Text.Json.JsonElement)jsonResult.data[0];
 
+                // TODO: What even is this
                 var imgDataArray = data.Deserialize<List<object>>();
 
-                var jsonResult2 = System.Text.Json.JsonSerializer.Deserialize<ImageResultData>(imgDataArray[0].ToString());
+                var jsonResult2 = System.Text.Json.JsonSerializer.Deserialize<ImageResultData>(imgDataArray![0].ToString()!) ?? throw new Exception();
 
-                byte[] imageBytes = null;
-                string imagePathOnDisk = null;
+                byte[]? imageBytes = null;
+                string? imagePathOnDisk = null;
                 if (jsonResult2.is_file && jsonResult2.name.StartsWith(@"C:\Users\Nop\AppData\Local\Temp\"))
                 {
                     imagePathOnDisk = jsonResult2.name;
 
-                    for (int i = 0; i < 10; i++)
+                    for (var i = 0; i < 10; i++)
                     {
                         try
                         {
@@ -167,13 +162,13 @@ namespace ConversationBot
                 }
                 else
                 {
-                    var imgDataB4 = imgDataArray[0].ToString();
+                    var imgDataB4 = imgDataArray[0].ToString() ?? throw new Exception();
                     var imgDataB4_2 = imgDataB4.Substring(imgDataB4.IndexOf(',') + 1);
                     imageBytes = Convert.FromBase64String(imgDataB4_2);
                 }
 
                 var data2 = ((System.Text.Json.JsonElement)jsonResult.data[1]).ToString();
-                var predictionResult = JsonSerializer.Deserialize<PromptResultData.PredictionResultInfo>(data2);
+                var predictionResult = JsonSerializer.Deserialize<PromptResultData.PredictionResultInfo>(data2) ?? throw new Exception("Failed to deserialize data2");
 
                 var filename = prompt.Trim().Substring(0, Math.Min(64, prompt.Length)).Replace(" ", "-");
                 filename = Regex.Replace(filename, @"[^a-zA-Z0-9\-]", string.Empty);
