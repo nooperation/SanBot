@@ -33,9 +33,25 @@ namespace SanBot.BaseBot
             }
         }
 
-        public virtual Task Init()
+        public virtual async Task Start()
         {
-            return Task.CompletedTask;
+            ConfigFile config;
+            var sanbotPath = Path.Join(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                "SanBot"
+            );
+            var configPath = Path.Join(sanbotPath, "SanBot.config.json");
+
+            try
+            {
+                config = ConfigFile.FromJsonFile(configPath);
+            }
+            catch (Exception ex)
+            {
+                throw new Exception("Missing or invalid config.json", ex);
+            }
+
+            await Start(config.Username, config.Password);
         }
 
         public virtual async Task Start(SecureString username, SecureString password)

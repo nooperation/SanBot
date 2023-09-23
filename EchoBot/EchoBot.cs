@@ -15,12 +15,10 @@ namespace EchoBot
         public uint? agentControllerIdImListeningTo { get; set; } = null;
         public List<PersonaData> TargetPersonas { get; set; } = new List<PersonaData>();
 
-        public SanUUID ItemClousterResourceId { get; set; } = new SanUUID("8d9484518db405d954204f2bfa900d0c"); // heart reaction thing
+        public List<byte[]> VoiceBuffer { get; set; } = new List<byte[]>();
+        public DateTime? TimeStartedListeningToTarget { get; set; } = null;
 
-        public HashSet<string> TargetHandles { get; set; } = new HashSet<string>()
-        {
-            "nop",
-        };
+        public SanUUID ItemClousterResourceId { get; set; } = new SanUUID("8d9484518db405d954204f2bfa900d0c"); // heart reaction thing
 
         public HashSet<string> IgnoredPeople { get; set; } = new HashSet<string>()
         {
@@ -34,8 +32,6 @@ namespace EchoBot
 
         private void CheckVoiceDump(object? target)
         {
-            Console.WriteLine("Check voice dump");
-
             if (LastTimeWeListenedToOurTarget != null)
             {
                 if ((DateTime.Now - LastTimeWeListenedToOurTarget.Value).TotalMilliseconds > 500)
@@ -61,38 +57,16 @@ namespace EchoBot
             }
         }
 
-        private readonly Timer? voiceDumpTimer = null;
-        public EchoBot()
+        public override async Task Start()
         {
-            ConfigFile config;
-            var sanbotPath = Path.Join(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "SanBot"
-            );
-            var configPath = Path.Join(sanbotPath, "SanBot.config.json");
-
-            try
-            {
-                config = ConfigFile.FromJsonFile(configPath);
-            }
-            catch (Exception ex)
-            {
-                throw new Exception("Missing or invalid config.json", ex);
-            }
-
             Driver.AutomaticallySendClientReady = true;
             Driver.UseVoice = true;
             Driver.IgnoreRegionServer = false;
 
-            Start(config.Username, config.Password).Wait();
-
-            //  voiceDumpTimer = new Timer(new TimerCallback(CheckVoiceDump), null, 0, 1000);
-        }
-
-        public override Task Init()
-        {
-            base.Init();
-            return Task.CompletedTask;
+            using (var timer = new Timer(new TimerCallback(CheckVoiceDump), null, 0, 1000))
+            {
+                await base.Start();
+            }
         }
 
         public override void OnPacket(IPacket packet)
@@ -135,7 +109,7 @@ namespace EchoBot
                 .FirstOrDefault();
             if (persona == null)
             {
-                Console.WriteLine("OnLocalAudioPosition: UNKNOWN -> AgentControllerId=" + e.AgentControllerId);
+                Output("OnLocalAudioPosition: UNKNOWN -> AgentControllerId=" + e.AgentControllerId);
                 return;
             }
             else
@@ -144,7 +118,7 @@ namespace EchoBot
                 {
                     return;
                 }
-                Console.WriteLine($"OnLocalAudioPosition: Handle={persona.Handle} PersonaId={persona.PersonaId} AgentControllerId={e.AgentControllerId} Position={e.Position}");
+                Output($"OnLocalAudioPosition: Handle={persona.Handle} PersonaId={persona.PersonaId} AgentControllerId={e.AgentControllerId} Position={e.Position}");
             }
         }
 
@@ -155,7 +129,7 @@ namespace EchoBot
                 .FirstOrDefault();
             if (persona == null)
             {
-                Console.WriteLine("OnLocalAudioStreamState: UNKNOWN -> AgentControllerId=" + e.AgentControllerId);
+                Output("OnLocalAudioStreamState: UNKNOWN -> AgentControllerId=" + e.AgentControllerId);
                 return;
             }
             else
@@ -164,7 +138,7 @@ namespace EchoBot
                 {
                     return;
                 }
-                Console.WriteLine($"OnLocalAudioStreamState: Handle={persona.Handle}  PersonaId={persona.PersonaId} AgentControllerId={e.AgentControllerId} Mute={e.Mute}");
+                Output($"OnLocalAudioStreamState: Handle={persona.Handle}  PersonaId={persona.PersonaId} AgentControllerId={e.AgentControllerId} Mute={e.Mute}");
             }
         }
 
@@ -175,17 +149,17 @@ namespace EchoBot
                 .FirstOrDefault();
             if (persona == null)
             {
-                Console.WriteLine("OnLocalAudioStreamState: Persona={e.PersonaId} CharacterObjectId={e.CharacterObjectId} SessionId={e.SessionId}");
+                Output($"OnCreateAgentController: UNKNOWN persona -> PersonaId={e.PersonaId} CharacterObjectId={e.CharacterObjectId} SessionId={e.SessionId}");
                 return;
             }
 
-            Console.WriteLine($"CreateAgentController: Handle={e.PersonaId} Persona={e.PersonaId} CharacterObjectId={e.CharacterObjectId} SessionId={e.SessionId}");
-            Console.WriteLine(e.ToString());
+            Output(e.ToString());
         }
 
         private void DumpVoiceBuffer()
         {
-            Output("Dumping voice buffer...");
+            // This is just kept to demonstrate a way of converting the audio to a usable format. Something that can be sent to Whisper or some other api
+            Directory.CreateDirectory("out_voice");
 
             byte[] wavBytes;
             using (MemoryStream ms = new())
@@ -212,9 +186,10 @@ namespace EchoBot
                 using MemoryStream wavStream = new();
                 WaveFileWriter.WriteWavFileToStream(wavStream, rs);
                 wavBytes = wavStream.ToArray();
+
+                File.WriteAllBytes($"./out_voice/{DateTimeOffset.Now.ToUnixTimeMilliseconds()}.wav", wavBytes);
             }
 
-            ++VoiceBufferIndex;
             VoiceBuffer.Clear();
         }
 
@@ -222,10 +197,6 @@ namespace EchoBot
         {
             var unused = TargetPersonas.RemoveAll(n => n.ClusterId == e.ClusterId);
         }
-
-        public List<byte[]> VoiceBuffer { get; set; } = new List<byte[]>();
-        public DateTime? TimeStartedListeningToTarget { get; set; } = null;
-        public int VoiceBufferIndex { get; set; } = 0;
 
         private void ClientVoiceMessages_OnLocalAudioData(SanProtocol.ClientVoice.LocalAudioData e)
         {
@@ -352,8 +323,6 @@ namespace EchoBot
 
         public override void OnKafkaLoginSuccess(SanProtocol.ClientKafka.LoginReply e)
         {
-            Console.WriteLine("EchoBot::OnKafkaLoginSuccess");
-
             Driver.JoinRegion("nop", "flat").Wait();
         }
     }

@@ -2,9 +2,10 @@
 {
     public class Entrypoint
     {
-        private static void Main(string[] args)
+        private static async Task Main(string[] args)
         {
             var bot = new EchoBot();
+            await bot.Start();
         }
     }
 }

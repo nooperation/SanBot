@@ -16,16 +16,16 @@ namespace SanBot
         }
 
         public List<PersonaData> TargetPersonas { get; set; } = new List<PersonaData>();
-        public DateTime LastSpawn { get; set; } = DateTime.Now;
         public System.Numerics.Vector3 PreviousPosition { get; set; }
-        public float DistanceSinceLastSpawn { get; set; } = 0.0f;
 
+        public DateTime LastSpawn { get; set; } = DateTime.Now;
+        public float DistanceSinceLastSpawn { get; set; } = 0.0f;
         private readonly HashSet<ulong> OurSpawnedComponentIds = new();
 
-        public SanUUID ItemClousterResourceId { get; set; }
-        public SanUUID ItemClousterResourceIdBig { get; set; }
-        public int MaxSpawnRateMs { get; set; }
-        public float DistancedRequiredBeforeSpawningMore { get; set; }
+        public SanUUID ItemClousterResourceId { get; set; } = new SanUUID();
+        public SanUUID ItemClousterResourceIdBig { get; set; } = new SanUUID();
+        public int MaxSpawnRateMs { get; set; } = 10;
+        public float DistancedRequiredBeforeSpawningMore { get; set; } = 0.0f;
         public List<float> SpawnOffset { get; set; } = new List<float> { 0.0f, 0.0f, 0.0f };
 
         public RunMode CurrentRunMode { get; set; } = RunMode.Hotfeet;
@@ -35,14 +35,30 @@ namespace SanBot
             "fakename-12345678"
         };
 
-        public override Task Init()
+        public override async Task Start()
         {
-            var unused = base.Init();
-
             Driver.AutomaticallySendClientReady = true;
             Driver.OnOutput += Driver_OnOutput;
 
-            return Task.CompletedTask;
+            if (CurrentRunMode == RunMode.Shitlisted)
+            {
+                ItemClousterResourceId = Driver.Clusterbutt("593fbd143678551813d813c51d9fca2a");
+                ItemClousterResourceIdBig = Driver.Clusterbutt("c196ada06a5b6d85357e5d08d6b6a6df");
+                MaxSpawnRateMs = 100;
+                DistancedRequiredBeforeSpawningMore = 0.5f;
+                SpawnOffset = new List<float> { 0.0f, 0.0f, 0.0f };
+            }
+            else
+            {
+                TargetHandles = new HashSet<string>();
+                ItemClousterResourceId = Driver.Clusterbutt("771e941bbea30bef600e9ef74c3f270a"); // flame
+                ItemClousterResourceIdBig = Driver.Clusterbutt("771e941bbea30bef600e9ef74c3f270a");
+                MaxSpawnRateMs = 10;
+                DistancedRequiredBeforeSpawningMore = 0.0f;
+                SpawnOffset = new List<float> { 0.0f, 0.0f, 0.0f };
+            }
+
+            await base.Start();
         }
 
         public override void OnPacket(IPacket packet)
@@ -70,47 +86,6 @@ namespace SanBot
                     WorldStateMessages_OnDestroyCluster((SanProtocol.WorldState.DestroyCluster)packet);
                     break;
             }
-        }
-
-        public Bot()
-        {
-            CurrentRunMode = RunMode.Hotfeet;
-
-            if (CurrentRunMode == RunMode.Shitlisted)
-            {
-                ItemClousterResourceId = Driver.Clusterbutt("593fbd143678551813d813c51d9fca2a");
-                ItemClousterResourceIdBig = Driver.Clusterbutt("c196ada06a5b6d85357e5d08d6b6a6df");
-                MaxSpawnRateMs = 100;
-                DistancedRequiredBeforeSpawningMore = 0.5f;
-                SpawnOffset = new List<float> { 0.0f, 0.0f, 0.0f };
-            }
-            else
-            {
-                TargetHandles = new HashSet<string>();
-                ItemClousterResourceId = Driver.Clusterbutt("771e941bbea30bef600e9ef74c3f270a"); // flame
-                ItemClousterResourceIdBig = Driver.Clusterbutt("771e941bbea30bef600e9ef74c3f270a");
-                MaxSpawnRateMs = 10;
-                DistancedRequiredBeforeSpawningMore = 0.0f;
-                SpawnOffset = new List<float> { 0.0f, 0.0f, 0.0f };
-            }
-
-            ConfigFile config;
-            var sanbotPath = Path.Join(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "SanBot"
-            );
-            var configPath = Path.Join(sanbotPath, "SanBot.config.json");
-
-            try
-            {
-                config = ConfigFile.FromJsonFile(configPath);
-            }
-            catch (Exception ex)
-            {
-                throw new Exception("Missing or invalid config.json", ex);
-            }
-
-            Start(config.Username, config.Password).Wait();
         }
 
         private void WorldStateMessages_OnDestroyCluster(SanProtocol.WorldState.DestroyCluster e)
@@ -243,7 +218,7 @@ namespace SanBot
             Console.WriteLine("Bot::OnKafkaLoginSuccess");
 
             //Driver.JoinRegion("sansar-studios", "sansar-park").Wait();
-            Driver.JoinRegion("nop", "flat2").Wait();
+            Driver.JoinRegion("nop", "flat").Wait();
         }
     }
 }
