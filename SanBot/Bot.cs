@@ -115,7 +115,7 @@ namespace SanBot
 
         private void WorldStateMessages_OnDestroyCluster(SanProtocol.WorldState.DestroyCluster e)
         {
-            _ = OurSpawnedComponentIds.Remove((ulong)e.ClusterId * 0x100000000);
+            OurSpawnedComponentIds.Remove((ulong)e.ClusterId * 0x100000000);
         }
 
         private void AnimationComponentMessages_OnCharacterTransformPersistent(SanProtocol.AnimationComponent.CharacterTransformPersistent e)
@@ -185,7 +185,7 @@ namespace SanBot
         {
             if (e.ResourceId == ItemClousterResourceId || e.ResourceId == ItemClousterResourceIdBig)
             {
-                _ = OurSpawnedComponentIds.Add((ulong)e.StartingObjectId * 0x100000000);
+                OurSpawnedComponentIds.Add((ulong)e.StartingObjectId * 0x100000000);
             }
         }
 

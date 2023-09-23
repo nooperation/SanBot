@@ -91,7 +91,7 @@ namespace EchoBot
 
         public override Task Init()
         {
-            _ = base.Init();
+            base.Init();
             return Task.CompletedTask;
         }
 
